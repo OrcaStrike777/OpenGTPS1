@@ -1,5 +1,12 @@
 # OpenGTPS1
 
+This fork's `old3ds-port` branch is developing a native Old Nintendo 3DS port.
+The initial data-free platform bootstrap and build instructions are in
+[`platform/3ds/README.md`](platform/3ds/README.md). It is not yet a playable GT2
+port. See the [port plan](docs/OLD3DS_PORT_PLAN.md) and
+[native dependency boundaries](docs/OLD3DS_DEPENDENCIES.md). The documentation
+below describes the upstream Windows release.
+
 OpenGTPS1 0.9b is an experimental static-recompilation port of the US
 Gran Turismo 2 **Simulation Disc** (`SCUS-94488`, NTSC-U revision 2) and
 **Arcade Disc** (`SCUS-94455`, NTSC-U), built with

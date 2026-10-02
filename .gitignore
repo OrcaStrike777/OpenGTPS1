@@ -36,6 +36,10 @@ __pycache__/
 *.pdb
 *.xbe
 *.xiso
+*.3dsx
+*.smdh
+*.elf
+/platform/3ds/*.map
 .vs/
 .vscode/
 .idea/

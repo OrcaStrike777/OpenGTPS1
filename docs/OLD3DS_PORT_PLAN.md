@@ -3,6 +3,11 @@
 Status: repository inspection and architecture plan, 2026-10-01.
 No native game runtime or 3DS executable has been implemented or validated yet.
 
+Implementation follow-up: the data-free native platform scaffold now exists;
+see [build instructions and verification status](../platform/3ds/README.md).
+The inspection below records the initial baseline, not current implementation
+status. No GT2 guest runtime or hardware-validated executable exists yet.
+
 ## Branch and objective
 
 Work exclusively on `old3ds-port`. At inspection it already existed, was checked
