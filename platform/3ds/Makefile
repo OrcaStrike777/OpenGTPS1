@@ -11,8 +11,17 @@ include $(DEVKITARM)/3ds_rules
 
 TARGET := opengtps1-old3ds
 BUILD := build
-export APP_TITLE := OpenGTPS1 Old 3DS
-export APP_DESCRIPTION := Native platform bootstrap (no game data)
+WITH_GT2_PROBE ?= 0
+ifeq ($(WITH_GT2_PROBE),1)
+TARGET := opengtps1-old3ds-gt2probe
+BUILD := build-gt2probe
+endif
+export APP_TITLE := OpenGTPS1 MIPS tests
+export APP_DESCRIPTION := Native guest tests (no game data)
+ifeq ($(WITH_GT2_PROBE),1)
+export APP_TITLE := OpenGTPS1 GT2 hash probe
+export APP_DESCRIPTION := Synthetic tests and exact GT2 hash
+endif
 export APP_AUTHOR := OpenGTPS1 contributors
 
 # ARM11 baseline, shared by original 3DS/2DS. No New 3DS switches.
@@ -32,9 +41,21 @@ export TOPDIR := $(CURDIR)
 export OUTPUT := $(CURDIR)/$(TARGET)
 export VPATH := $(CURDIR)/../../native/platform/3ds \
                 $(CURDIR)/../../native/platform/common \
+                $(CURDIR)/../../native/runtime \
+                $(CURDIR)/../../native/tests/recompiled \
+                $(CURDIR)/../../native/tests \
+                $(CURDIR)/../../generated/old3ds \
                 $(CURDIR)/../../native/src
 export DEPSDIR := $(CURDIR)/$(BUILD)
-export OFILES := main.o host.o stdio_files.o geometry_stitcher.o
+export OFILES := main.o host.o stdio_files.o geometry_stitcher.o guest.o mips_suite.o
+ifeq ($(WITH_GT2_PROBE),1)
+ifeq ($(wildcard ../../generated/old3ds/gt2_probe.cpp),)
+$(error Run python tools/prepare_native_gt2_probe.py with your supported disc first)
+endif
+export OFILES += gt2_probe.o
+else
+export OFILES += gt2_probe_stub.o
+endif
 export INCLUDE := -I$(CURDIR)/../../native/include \
                   -I$(CURDIR)/../../native/platform/3ds \
                   $(foreach dir,$(LIBDIRS),-isystem $(dir)/include)

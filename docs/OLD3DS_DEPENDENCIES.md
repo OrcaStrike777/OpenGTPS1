@@ -1,5 +1,11 @@
 # Native boundary extraction: first implementation
 
+Native guest milestone update (2026-10-02): the 3DS graph now also includes the
+bounded guest runtime and shared synthetic C++ suite. `WITH_GT2_PROBE=1` adds
+the locally generated string-hash function from the validated Simulation disc.
+See [current native guest evidence](OLD3DS_NATIVE_GUEST.md). The original
+platform-only extraction record follows.
+
 The 3DS dependency graph is now independent of `tools/build.ps1` and the managed
 host. `platform/3ds/Makefile` compiles only `main.cpp`, `host.cpp`,
 `stdio_files.cpp`, and the existing `geometry_stitcher.cpp`; its libraries are

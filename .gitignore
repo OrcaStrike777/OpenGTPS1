@@ -40,6 +40,7 @@ __pycache__/
 *.smdh
 *.elf
 /platform/3ds/*.map
+/platform/3ds/build-gt2probe/
 .vs/
 .vscode/
 .idea/

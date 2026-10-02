@@ -1,5 +1,11 @@
 # Old 3DS bootstrap
 
+Current milestone (2026-10-02): the original bootstrap passed the user's Old 3DS
+hardware test. The current build adds 16 native MIPS tests and an optional exact
+GT2 string-hash probe. See [native guest tests and current binaries](../../docs/OLD3DS_NATIVE_GUEST.md)
+for reproduction, expected hashes, and the next hardware run. X reruns the tests.
+The old binary sizes/hashes below record the initial platform-only build.
+
 This is a native platform bootstrap, not a playable GT2 build. It needs no game
 data, BIOS, generated recompiler output, .NET, SDL, or Windows renderer DLL.
 It targets original 3DS/2DS ARM11 hardware with devkitARM, libctru, and Citro3D.

@@ -1,4 +1,5 @@
 #include "host.hpp"
+#include "opengt/guest_tests.hpp"
 
 #include <cstdio>
 
@@ -83,9 +84,9 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
     // Bottom console owns its framebuffer; Citro3D owns top-screen swaps.
     // Do not call gfxSwapBuffers or a second VBlank wait here.
     std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS bootstrap\n"
-                "No GT2 data or guest runtime yet\n"
-                "START: exit   A: change top color\n"
-                "Frame: %-12llu\nDelta: %8.2f ms\n"
+                "Native MIPS execution diagnostics\n"
+                "START exit / X rerun / A color\n"
+                "Frame: %-10llu %8.2f ms\n"
                 "Held: %08lx  Down: %08lx\nUp:   %08lx\n"
                 "Circle: %+5.2f %+5.2f\n"
                 "Linear free: %8lu KiB\nSD probe: %-16s\n"
@@ -97,6 +98,26 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                 static_cast<double>(d.input.circle_x), static_cast<double>(d.input.circle_y),
                 static_cast<unsigned long>(d.linear_free_bytes / 1024),
                 platform::status_name(d.storage));
+    if (d.guest_tests) {
+        const auto& report = *d.guest_tests;
+        std::printf("MIPS %u/%u  hash %08lx\n", report.passed, report.count,
+                    static_cast<unsigned long>(report.signature));
+        for (unsigned i = 0; i < report.count; ++i)
+            std::printf("%-4s %-24s\n", report.tests[i].passed ? "PASS" : "FAIL", report.tests[i].name);
+        if (d.gt2_probe && d.gt2_probe->count)
+            std::printf("GT2 hash %u/%u sig %08lx\n", d.gt2_probe->passed, d.gt2_probe->count,
+                        static_cast<unsigned long>(d.gt2_probe->signature));
+        else std::printf("GT2 probe: not built or gated     \n");
+        std::printf("                                     \r");
+        for (unsigned i = 0; i < report.count; ++i) {
+            if (!report.tests[i].passed) {
+                std::printf("got %08lx expected %08lx",
+                    static_cast<unsigned long>(report.tests[i].actual),
+                    static_cast<unsigned long>(report.tests[i].expected));
+                break;
+            }
+        }
+    }
     gfxFlushBuffers();
     return true;
 }

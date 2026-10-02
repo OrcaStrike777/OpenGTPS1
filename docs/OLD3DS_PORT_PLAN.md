@@ -6,7 +6,8 @@ No native game runtime or 3DS executable has been implemented or validated yet.
 Implementation follow-up: the data-free native platform scaffold now exists;
 see [build instructions and verification status](../platform/3ds/README.md).
 The inspection below records the initial baseline, not current implementation
-status. No GT2 guest runtime or hardware-validated executable exists yet.
+status. The bootstrap has since passed the user's Old 3DS hardware test; see
+[native guest execution progress](OLD3DS_NATIVE_GUEST.md) for the next milestone.
 
 ## Branch and objective
 

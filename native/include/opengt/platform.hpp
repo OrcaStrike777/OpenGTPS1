@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace opengt::guest { struct TestReport; }
+
 // No SDK or managed types may cross this boundary. Implementations are owned
 // by the host and outlive their users. Guest execution remains single-threaded.
 namespace opengt::platform {
@@ -43,6 +45,8 @@ struct Diagnostics {
     double frame_ms{};
     std::size_t linear_free_bytes{};
     Status storage{Status::unavailable};
+    const guest::TestReport* guest_tests{};
+    const guest::TestReport* gt2_probe{};
 };
 
 class Graphics {
