@@ -1,9 +1,9 @@
 # Native MIPS execution milestone
 
-Status, 2026-10-02: the user confirmed the original platform bootstrap works on
-Old 3DS. The new guest tests pass on PC and are compiled into the 3DSX, but
-**this new build still requires a hardware run**. No game graphics/audio or
-whole-game boot is implemented.
+Status, 2026-10-02: the user confirmed the native MIPS tests (16/16,
+`5775a33b`) and real GT2 hash tests (6/6, `2ceef133`) pass on an original Old 3DS.
+The next build adds a [bounded real startup probe](OLD3DS_BOOT_PROBE.md),
+which still needs its own hardware run. No game graphics/audio is implemented.
 
 ## Runtime and generation
 

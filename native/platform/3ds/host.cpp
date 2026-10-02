@@ -1,5 +1,6 @@
 #include "host.hpp"
 #include "opengt/guest_tests.hpp"
+#include "opengt/boot_probe.hpp"
 
 #include <cstdio>
 
@@ -83,6 +84,38 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
     C3D_FrameEnd(0);
     // Bottom console owns its framebuffer; Citro3D owns top-screen swaps.
     // Do not call gfxSwapBuffers or a second VBlank wait here.
+    const bool boot_page = d.boot_page && d.boot && d.boot->available;
+    if (boot_page != previous_boot_page_) consoleClear();
+    previous_boot_page_ = boot_page;
+    if (boot_page) {
+        const auto& b = *d.boot;
+        const auto hex = [](std::uint32_t v) { return static_cast<unsigned long>(v); };
+        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS boot probe\n"
+                    "START exit / X rerun / A color\n"
+                    "Y: synthetic test details\n"
+                    "MIPS %u/%u hash %08lx\n"
+                    "GT2 hash %u/%u sig %08lx\n"
+                    "Boot runtime %u/%u\n"
+                    "GT2 BOOT %-4s (bounded stop)\n"
+                    "Entry       %08lx\nPC          %08lx\n"
+                    "Last OK     %08lx\nLast func   %08lx\n"
+                    "Functions   %lu\nInstructions %lu\n"
+                    "Unresolved  %08lx\nTrap: %-22s\n"
+                    "I_STAT boundary: %s\n"
+                    "BSS clear: %s / I_MASK IO: %lu\n"
+                    "Startup trace:\n",
+                    d.guest_tests->passed, d.guest_tests->count, hex(d.guest_tests->signature),
+                    d.gt2_probe->passed, d.gt2_probe->count, hex(d.gt2_probe->signature),
+                    d.boot_operations->passed, d.boot_operations->count,
+                    b.passed ? "PASS" : "FAIL", hex(b.entry), hex(b.pc), hex(b.last_pc),
+                    hex(b.last_function), hex(b.functions), hex(b.instructions), hex(b.unresolved),
+                    guest::stop_name(b.stop), b.unresolved == 0x1F801070 ? "reached" : "not reached",
+                    b.clears_verified ? "PASS" : "FAIL", hex(b.io_accesses));
+        for (unsigned i = 0; i < b.trace_count && i < 9; ++i)
+            std::printf(" %u: %08lx\n", i + 1, hex(b.trace[i]));
+        gfxFlushBuffers();
+        return true;
+    }
     std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS bootstrap\n"
                 "Native MIPS execution diagnostics\n"
                 "START exit / X rerun / A color\n"
@@ -90,7 +123,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                 "Held: %08lx  Down: %08lx\nUp:   %08lx\n"
                 "Circle: %+5.2f %+5.2f\n"
                 "Linear free: %8lu KiB\nSD probe: %-16s\n"
-                "Audio/save: unsupported\n",
+                "Y: boot diagnostics\n",
                 static_cast<unsigned long long>(d.frame), d.frame_ms,
                 static_cast<unsigned long>(d.input.held),
                 static_cast<unsigned long>(d.input.pressed),

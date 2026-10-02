@@ -100,6 +100,7 @@ TestReport run_gt2_probe() noexcept {
     (output / "gt2_probe_provenance.json").write_text(json.dumps(provenance,indent=2)+"\n")
     print(json.dumps(provenance,indent=2))
     print("Generated local GT2 C++ probe:", output / "gt2_probe.cpp")
+    return image
 
 
 if __name__ == "__main__":

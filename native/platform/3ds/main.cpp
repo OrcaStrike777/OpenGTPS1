@@ -1,6 +1,7 @@
 #include "host.hpp"
 #include "opengt/stdio_files.hpp"
 #include "opengt/guest_tests.hpp"
+#include "opengt/boot_probe.hpp"
 
 #include <cstdio>
 
@@ -22,11 +23,24 @@ int main() {
     opengt::platform::UnavailableSaves saves;
     (void)saves; // Reserved boundary; bootstrap never writes a memory card.
     opengt::platform::Diagnostics diagnostics{};
-    auto guest_report = opengt::guest::run_synthetic_tests();
-    opengt::guest::TestReport gt2_report{};
-    if (guest_report.passed == guest_report.count) gt2_report = opengt::guest::run_gt2_probe();
+    opengt::guest::TestReport guest_report{}, gt2_report{}, boot_operations{};
+    opengt::guest::BootReport boot_report{};
+    const auto run_tests = [&]() {
+        guest_report = opengt::guest::run_synthetic_tests();
+        boot_operations = opengt::guest::run_boot_runtime_tests();
+        gt2_report = {};
+        boot_report = {};
+        if (guest_report.passed == guest_report.count)
+            gt2_report = opengt::guest::run_gt2_probe();
+        if (gt2_report.count == 6 && gt2_report.passed == 6 &&
+            boot_operations.passed == boot_operations.count)
+            boot_report = opengt::guest::run_boot_probe();
+    };
+    run_tests();
     diagnostics.guest_tests = &guest_report;
     diagnostics.gt2_probe = &gt2_report;
+    diagnostics.boot_operations = &boot_operations;
+    diagnostics.boot = &boot_report;
     char probe[64]{};
     std::size_t bytes_read = 0;
     diagnostics.storage = files.read_at("bootstrap.txt", 0, probe, sizeof(probe), bytes_read);
@@ -36,11 +50,9 @@ int main() {
         host.wait_vblank();
         diagnostics.input = host.poll();
         if (diagnostics.input.pressed & opengt::platform::start) break;
-        if (diagnostics.input.pressed & opengt::platform::x) {
-            guest_report = opengt::guest::run_synthetic_tests();
-            gt2_report = {};
-            if (guest_report.passed == guest_report.count) gt2_report = opengt::guest::run_gt2_probe();
-        }
+        if (diagnostics.input.pressed & opengt::platform::x) run_tests();
+        if (diagnostics.input.pressed & opengt::platform::y)
+            diagnostics.boot_page = !diagnostics.boot_page;
         const auto now = host.ticks();
         diagnostics.frame_ms = 1000.0 * static_cast<double>(now - previous) /
                                static_cast<double>(host.ticks_per_second());

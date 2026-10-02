@@ -41,6 +41,7 @@ __pycache__/
 *.elf
 /platform/3ds/*.map
 /platform/3ds/build-gt2probe/
+/platform/3ds/build-bootprobe/
 .vs/
 .vscode/
 .idea/

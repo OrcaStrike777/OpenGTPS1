@@ -6,12 +6,14 @@ namespace opengt::guest {
 using u32 = std::uint32_t;
 enum class Stop : u32 { running, returned, budget, address_load, address_store,
                         unmapped, overflow, unknown_pc, delay_control };
+struct BootIo { u32 interrupt_mask{}, accesses{}; };
 
 // Caller owns storage; only retail 2 MiB or explicit devkit 8 MiB is accepted.
 // Devices, BIOS and caches are not silently backed by anonymous RAM.
 class Memory {
 public:
     Memory(std::uint8_t* ram, std::size_t bytes, std::uint8_t* scratch) noexcept;
+    void attach_boot_io(BootIo* io) noexcept { io_ = io; }
     bool read(u32 address, unsigned width, u32& value) const noexcept;
     bool write(u32 address, unsigned width, u32 value) noexcept;
 private:
@@ -19,6 +21,7 @@ private:
     std::uint8_t* ram_;
     std::size_t bytes_;
     std::uint8_t* scratch_;
+    BootIo* io_{};
 };
 
 struct Context {
@@ -52,5 +55,6 @@ void divide(Context& c, u32 a, u32 b, bool is_signed) noexcept;
 void checked_add(Context& c, unsigned dst, u32 a, u32 b, bool subtract) noexcept;
 bool guest_read(Context& c, Memory& m, u32 address, unsigned width, u32& value) noexcept;
 void guest_write(Context& c, Memory& m, u32 address, unsigned width, u32 value) noexcept;
+void store_merge(Context& c, Memory& m, u32 address, u32 value, bool left) noexcept;
 const char* stop_name(Stop stop) noexcept;
 } // namespace opengt::guest

@@ -19,6 +19,9 @@ std::uint8_t* Memory::resolve(u32 address, unsigned width) const noexcept {
 }
 
 bool Memory::read(u32 address, unsigned width, u32& value) const noexcept {
+    if (io_ && (address == 0x1F801074 || address == 0x9F801074 || address == 0xBF801074) && (width == 2 || width == 4)) {
+        value = io_->interrupt_mask; ++io_->accesses; return true;
+    }
     const auto* p = resolve(address, width);
     if (!p) return false;
     value = 0;
@@ -26,6 +29,9 @@ bool Memory::read(u32 address, unsigned width, u32& value) const noexcept {
     return true;
 }
 bool Memory::write(u32 address, unsigned width, u32 value) noexcept {
+    if (io_ && (address == 0x1F801074 || address == 0x9F801074 || address == 0xBF801074) && (width == 2 || width == 4)) {
+        io_->interrupt_mask = value & 0x7FF; ++io_->accesses; return true;
+    }
     auto* p = resolve(address, width);
     if (!p) return false;
     for (unsigned i = 0; i < width; ++i) p[i] = static_cast<std::uint8_t>(value >> (8 * i));
@@ -84,6 +90,19 @@ bool guest_read(Context& c, Memory& m, u32 address, unsigned width, u32& value) 
 void guest_write(Context& c, Memory& m, u32 address, unsigned width, u32 value) noexcept {
     if (address & (width - 1)) c.fault(Stop::address_store, address);
     else if (!m.write(address, width, value)) c.fault(Stop::unmapped, address);
+}
+void store_merge(Context& c, Memory& m, u32 address, u32 value, bool left) noexcept {
+    const u32 aligned = address & ~3u, offset = address & 3u;
+    u32 original = 0;
+    if (!guest_read(c, m, aligned, 4, original)) return;
+    // Little-endian SWL fills bytes [0,offset]; SWR fills [offset,3].
+    const unsigned first = left ? 0 : offset, last = left ? offset : 3;
+    for (unsigned byte = first; byte <= last; ++byte) {
+        const unsigned source = left ? (3 - offset + byte) : (byte - offset);
+        original = (original & ~(0xFFu << (byte * 8))) |
+                   (((value >> (source * 8)) & 0xFFu) << (byte * 8));
+    }
+    guest_write(c, m, aligned, 4, original);
 }
 const char* stop_name(Stop stop) noexcept {
     switch (stop) {

@@ -69,6 +69,8 @@ def operation(word, pc):
         if op == 32: expr = "(value & 0x80u) ? value | 0xFFFFFF00u : value"
         if op == 33: expr = "(value & 0x8000u) ? value | 0xFFFF0000u : value"
         return f"u32 value = 0; if (guest_read(c, m, {address}, {width}, value)) c.load({rt}, {expr});", False
+    if op in (42, 46):
+        return f"store_merge(c, m, {address}, t, {'true' if op == 42 else 'false'});", False
     if op in (40, 41, 43):
         width = {40: 1, 41: 2, 43: 4}[op]
         return f"guest_write(c, m, {address}, {width}, t);", False

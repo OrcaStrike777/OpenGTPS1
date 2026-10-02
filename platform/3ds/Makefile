@@ -11,6 +11,10 @@ include $(DEVKITARM)/3ds_rules
 
 TARGET := opengtps1-old3ds
 BUILD := build
+WITH_GT2_BOOT ?= 0
+ifeq ($(WITH_GT2_BOOT),1)
+override WITH_GT2_PROBE := 1
+endif
 WITH_GT2_PROBE ?= 0
 ifeq ($(WITH_GT2_PROBE),1)
 TARGET := opengtps1-old3ds-gt2probe
@@ -21,6 +25,12 @@ export APP_DESCRIPTION := Native guest tests (no game data)
 ifeq ($(WITH_GT2_PROBE),1)
 export APP_TITLE := OpenGTPS1 GT2 hash probe
 export APP_DESCRIPTION := Synthetic tests and exact GT2 hash
+endif
+ifeq ($(WITH_GT2_BOOT),1)
+TARGET := opengtps1-old3ds-bootprobe
+BUILD := build-bootprobe
+export APP_TITLE := OpenGTPS1 GT2 boot probe
+export APP_DESCRIPTION := Bounded native GT2 startup
 endif
 export APP_AUTHOR := OpenGTPS1 contributors
 
@@ -47,7 +57,7 @@ export VPATH := $(CURDIR)/../../native/platform/3ds \
                 $(CURDIR)/../../generated/old3ds \
                 $(CURDIR)/../../native/src
 export DEPSDIR := $(CURDIR)/$(BUILD)
-export OFILES := main.o host.o stdio_files.o geometry_stitcher.o guest.o mips_suite.o
+export OFILES := main.o host.o stdio_files.o geometry_stitcher.o guest.o mips_suite.o boot_runtime_suite.o
 ifeq ($(WITH_GT2_PROBE),1)
 ifeq ($(wildcard ../../generated/old3ds/gt2_probe.cpp),)
 $(error Run python tools/prepare_native_gt2_probe.py with your supported disc first)
@@ -55,6 +65,14 @@ endif
 export OFILES += gt2_probe.o
 else
 export OFILES += gt2_probe_stub.o
+endif
+ifeq ($(WITH_GT2_BOOT),1)
+ifeq ($(wildcard ../../generated/old3ds/gt2_boot.cpp),)
+$(error Run python tools/prepare_native_gt2_boot.py with your supported disc first)
+endif
+export OFILES += gt2_boot.o
+else
+export OFILES += boot_probe_stub.o
 endif
 export INCLUDE := -I$(CURDIR)/../../native/include \
                   -I$(CURDIR)/../../native/platform/3ds \

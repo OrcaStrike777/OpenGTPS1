@@ -24,6 +24,7 @@ public:
 private:
     bool gfx_ready_{};
     bool c3d_ready_{};
+    bool previous_boot_page_{};
     C3D_RenderTarget* top_{};
 };
 
