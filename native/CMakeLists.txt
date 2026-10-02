@@ -5,14 +5,16 @@ project(OpenGTRendererCore VERSION 0.1.0 LANGUAGES CXX)
 option(OPENGT_BUILD_TESTS "Build native renderer core tests" ON)
 option(OPENGT_BUILD_DEV_TOOLS "Build renderer diagnostic/oracle tools" ON)
 
+add_subdirectory(portable)
+
 add_library(opengt_renderer_core STATIC
-    src/geometry_stitcher.cpp
     src/world_capture.cpp
     src/world_draw_list.cpp
     src/world_gpu_renderer_d3d11.cpp
     src/world_topology.cpp
     src/background_seams.cpp
 )
+target_link_libraries(opengt_renderer_core PUBLIC opengt_geometry)
 
 # Synthetic midpoint reconstruction remains available only to explicitly
 # requested development tests/tools. A shipping build has no interpolation
