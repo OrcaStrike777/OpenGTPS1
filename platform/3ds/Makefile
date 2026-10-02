@@ -37,7 +37,7 @@ export DEPSDIR := $(CURDIR)/$(BUILD)
 export OFILES := main.o host.o stdio_files.o geometry_stitcher.o
 export INCLUDE := -I$(CURDIR)/../../native/include \
                   -I$(CURDIR)/../../native/platform/3ds \
-                  $(foreach dir,$(LIBDIRS),-I$(dir)/include)
+                  $(foreach dir,$(LIBDIRS),-isystem $(dir)/include)
 export LIBPATHS := $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 export LD := $(CXX)
 export _3DSXDEPS := $(OUTPUT).smdh

@@ -28,6 +28,27 @@ make -C platform/3ds
 ```
 
 The read-only Python check is optional; Python is not a build dependency.
+The Windows devkitPro MSYS2 installation may not include Python. If so, skip
+that optional command and build with make. To invoke the installed MSYS2 login
+environment from PowerShell, run this from the repository root (adjust the
+installation path if necessary):
+
+```powershell
+& C:/devkitPro/msys2/usr/bin/bash.exe -lc 'cd "$(cygpath -u "$1")" && make -C platform/3ds' build-3ds (Get-Location).Path
+```
+
+The login shell sets `DEVKITPRO=/opt/devkitpro` and `DEVKITARM` using the
+installation's MSYS2 mount. A pre-existing PowerShell session need not have
+those variables or the compiler on PATH. For the optional dependency checker
+using Windows Python, set process-local Windows paths in PowerShell:
+
+```powershell
+$env:DEVKITPRO = 'C:/devkitPro'
+$env:DEVKITARM = 'C:/devkitPro/devkitARM'
+$env:PATH = 'C:/devkitPro/msys2/usr/bin;' + $env:PATH
+python tools/check_3ds_toolchain.py
+```
+
 The Makefile uses the installed `3ds_rules`, compiles C++17 for ARMv6K, and links
 Citro3D/libctru statically. Output alongside this README:
 
@@ -106,12 +127,22 @@ and explicit unsupported audio/save results. Use a disposable build directory.
 
 - Passed: portable I/O and existing geometry tests, compiled using local MSVC
   19.16 with C++17, `/W4 /WX`; `git diff --check`.
-- Not run: CMake configuration (CMake not on PATH), ARM compilation/linking,
-  3DSX packaging, emulator execution, or hardware smoke tests.
-- Missing locally: `DEVKITPRO`, `DEVKITARM`, `arm-none-eabi-g++`, GNU make,
-  `3ds_rules`, libctru headers/library, Citro3D headers/library, `3dsxtool`,
-  `smdhtool`, and the toolchain's default SMDH icon. The dependency checker
-  lists each missing item and exits nonzero.
+- Passed after toolchain installation: dependency checker, full ARM rebuild
+  (`make -B -C platform/3ds`), static linking, SMDH/3DSX packaging, and
+  `3dsxdump` parsing of the generated executable. No compile/link errors;
+  SDK include directories now use `-isystem` so their GNU extensions do not
+  flood the build with warnings while project warnings remain enabled.
+- Verified installation: `C:/devkitPro`; devkitARM r68-1 (GCC 16.1.0),
+  libctru 2.7.0-1, Citro3D 1.7.1-2, devkitarm-rules 1.6.0-4,
+  devkitarm-crtls 1.2.6-1, and 3dstools 1.3.1-3.
+- Produced `opengtps1-old3ds.3dsx` (156,932 bytes) with embedded SMDH metadata;
+  separate `opengtps1-old3ds.smdh` is 14,016 bytes. SHA-256 of this 3DSX:
+  `4453748BB8A04BFAFC502A6B7F56380DFF0767116F24198CCE4BD139F30B7A8B`.
+  ELF size report: text 133,784; data 7,608; BSS 16,152 bytes. This excludes
+  runtime heap/graphics allocations. Application objects report ARMv6K/VFPv2.
+- Not run: portable CMake configuration, emulator execution, or hardware smoke
+  tests. The executable is ready to copy for the Old 3DS smoke test above;
+  successful packaging does not establish on-device behavior.
 - Audio deliberately returns `unsupported`. Memory-card load/store also return
   `unsupported`; there is no persistence or guest memory-card protocol yet.
 - Read-only stdio opens/seeks/closes on each request. It bounds caller buffers
@@ -121,8 +152,8 @@ and explicit unsupported audio/save results. Use a disposable build directory.
 - Graphics currently clears/presents a target; no PS1 GPU, guest CPU, GTE,
   native generated functions, disc scheduler, or game execution exists yet.
 
-Next: compile/package this target with devkitPro and run the smoke test on Old
-3DS. Independently, implement a small native guest register/memory context and
+Next: run the smoke test on Old 3DS. After bootstrap validation, implement a
+small native guest register/memory context and
 the first C/C++ instruction-emitter fixture alongside the existing C# backend;
 compare registers and memory after synthetic MIPS execution before adding GT2.
 
