@@ -5,6 +5,7 @@
 
 namespace opengt::guest {
 struct TimerSetup;
+class DmaInterrupts;
 using u32 = std::uint32_t;
 enum class Stop : u32 { running, returned, budget, address_load, address_store,
                         unmapped, overflow, unknown_pc, delay_control, bios };
@@ -17,6 +18,7 @@ public:
     Memory(std::uint8_t* ram, std::size_t bytes, std::uint8_t* scratch) noexcept;
     void attach_interrupts(InterruptController* irq) noexcept { irq_ = irq; }
     void attach_dma_priority(DmaPriority* dma) noexcept { dma_ = dma; }
+    void attach_dma_interrupts(DmaInterrupts* dma) noexcept { dma_irq_ = dma; }
     void attach_timer_setup(TimerSetup* timer) noexcept { timer_ = timer; }
     bool read(u32 address, unsigned width, u32& value) const noexcept;
     bool write(u32 address, unsigned width, u32 value) noexcept;
@@ -27,6 +29,7 @@ private:
     std::uint8_t* scratch_;
     InterruptController* irq_{};
     DmaPriority* dma_{};
+    DmaInterrupts* dma_irq_{};
     TimerSetup* timer_{};
 };
 

@@ -2,7 +2,7 @@
 """Build a bounded sparse startup graph from the validated original EXE.
 
 No instructions are replaced. Explicit audited ranges reach the observed
-DMA interrupt-control boundary; additional calls stop as unknown targets.
+BIOS CD-ROM cleanup boundary; additional calls stop as unknown targets.
 """
 import hashlib
 import json
@@ -20,7 +20,7 @@ RANGES = [(0x8005D600,0x8005D698), (0x8008CE08,0x8008CE30),
           (0x8008C638,0x8008C65C), (0x8008BCA8,0x8008BCD8),
           (0x8008C0B4,0x8008C1FC), (0x8008C998,0x8008C9A4),
           (0x8008CC58,0x8008CC64), (0x8008C668,0x8008C6B4),
-          (0x8008C8E0,0x8008C904)]
+          (0x8008C8E0,0x8008C904), (0x8008CC90,0x8008CC9C)]
 
 def generate(exe, system_cnf):
     if hashlib.sha256(exe).hexdigest() != EXE_HASH: raise ValueError('wrong executable')
@@ -36,14 +36,14 @@ def generate(exe, system_cnf):
     image = exe[0x800:]
     # PS-X EXE .data fields are not treated as separate BSS. Original CRT clears it.
     out = ['// Locally generated proprietary startup code; keep ignored.',
-           '#include "opengt/guest_tests.hpp"', '#include "opengt/startup_services.hpp"', '#include "opengt/boot_probe.hpp"',
+           '#include "opengt/guest_tests.hpp"', '#include "opengt/ps1_dma.hpp"', '#include "opengt/startup_services.hpp"', '#include "opengt/boot_probe.hpp"',
            'namespace opengt::guest {', 'namespace {',
            'const std::uint8_t image[] = {']
     out += [','.join(str(x) for x in image[i:i+64])+',' for i in range(0,len(image),64)]
     out += ['};', '}', 'BootReport run_boot_probe(bool devices, u32 budget) noexcept {',
             'BootReport report{}; report.available = true;',
-            'Memory m = reset_test_memory(); InterruptController io{}; DmaPriority dma{}; TimerSetup timers{}; StartupBios bios{};',
-            'if (devices) { m.attach_interrupts(&io); m.attach_dma_priority(&dma); m.attach_timer_setup(&timers); }',
+            'Memory m = reset_test_memory(); InterruptController io{}; DmaInterrupts dicr(io); DmaPriority dma{}; TimerSetup timers{}; StartupBios bios{};',
+            'if (devices) { m.attach_interrupts(&io); m.attach_dma_priority(&dma); m.attach_dma_interrupts(&dicr); m.attach_timer_setup(&timers); }',
             f'for (u32 i=0;i<sizeof(image);++i) if (!m.write({backend.literal(base)}+i,1,image[i])) return report;',
             '// Poison zero-initialized BSS to prove the original guest loops clear it.',
             'for (u32 a=0x800A8D5C;a<0x801F0D60;a+=4) m.write(a,4,0xA5A5A5A5);',
@@ -70,6 +70,8 @@ def generate(exe, system_cnf):
             out += [statement]
             if pc == 0x8008BE50:
                 out += ['if(c.stop==Stop::running) report.crossed_istat=true;']
+            if pc == 0x8008C698:
+                out += ['if(c.stop==Stop::running) report.crossed_dicr=true;']
             out += ['if(c.stop==Stop::running){report.last_pc=c.pc;c.pc=next;} break; }']
     out += ['default:c.stop=(c.pc==0xA0||c.pc==0xB0||c.pc==0xC0)?Stop::bios:Stop::unknown_pc;break;', '}', '}',
             'report.pc=c.pc;report.instructions=c.instructions;report.stop=c.stop;',
@@ -77,14 +79,16 @@ def generate(exe, system_cnf):
             'report.ra=c.read(31);report.sp=c.read(29);report.stat_reads=io.stat_reads;report.stat_writes=io.stat_writes;report.mask_reads=io.mask_reads;report.mask_writes=io.mask_writes;report.io_accesses=io.stat_reads+io.stat_writes+io.mask_reads+io.mask_writes;report.dma_reads=dma.reads;report.dma_writes=dma.writes;',
             'report.timer_writes=timers.writes;report.bios_api=c.stop==Stop::bios?c.read(9):0;report.bios_calls=bios.calls;report.hook_buffer=bios.hook_buffer;report.irq_pending=io.pending();report.irq_mask=io.mask();',
             'report.pad_auto_ack=bios.pad_auto_ack;report.vblank_auto_ack=bios.timer_auto_ack[3];report.pad_calls=bios.pad_calls;report.rcnt_calls=bios.rcnt_calls;',
+            'report.dicr_reads=dicr.reads;report.dicr_writes=dicr.writes;report.dicr_state=dicr.state();report.dma_completions=dicr.completions;report.dma_irq_rises=dicr.irq_rises;report.dma_channel_reads=dicr.channel_reads;report.dma_channel_writes=dicr.channel_writes;',
             'report.clears_verified=true;u32 value=0;',
             'for(u32 a=0x800A8D5C;a<0x801F0D60;a+=4) if(!m.read(a,4,value)||value) report.clears_verified=false;',
             'const bool heap=m.read(0x800A8D50,4,value)&&value==0x801F0D60;',
             'report.passed=report.clears_verified&&heap&&',
-            '(devices?(report.crossed_istat&&c.stop==Stop::unmapped&&c.pc==0x8008C698&&c.bad_vaddr==0x1F8010F4&&',
-            'c.in_delay&&c.epc==0x8008C694&&(c.cause&0x80000000u)&&',
-            'report.functions==20&&report.instructions==1307514&&report.last_pc==0x8008C694&&',
-            'io.stat_reads==0&&io.stat_writes==1&&io.mask_reads==2&&io.mask_writes==3&&io.mask()==1&&',
+            '(devices?(report.crossed_istat&&report.crossed_dicr&&c.stop==Stop::bios&&c.pc==0xA0&&c.read(9)==0x72&&',
+            'report.functions==23&&report.instructions==1307596&&report.last_pc==0x8008CC98&&',
+            'dicr.reads==0&&dicr.writes==1&&dicr.state()==0&&dicr.completions==0&&dicr.irq_rises==0&&',
+            'dicr.channel_reads==0&&dicr.channel_writes==0&&io.pending()==0&&',
+            'io.stat_reads==0&&io.stat_writes==1&&io.mask_reads==3&&io.mask_writes==5&&io.mask()==9&&',
             'dma.writes==1&&dma.value==0x33333333&&timers.writes==1&&timers.mode[1]==0x100&&',
             'bios.calls==3&&bios.hook_buffer==0x800A7BB4&&bios.pad_calls==1&&bios.pad_auto_ack==0&&',
             'bios.rcnt_calls==1&&bios.timer_auto_ack[3]==0):',

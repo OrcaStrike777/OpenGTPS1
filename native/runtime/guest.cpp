@@ -1,5 +1,6 @@
 #include "opengt/guest.hpp"
 #include "opengt/startup_services.hpp"
+#include "opengt/ps1_dma.hpp"
 
 namespace opengt::guest {
 Memory::Memory(std::uint8_t* ram, std::size_t bytes, std::uint8_t* scratch) noexcept
@@ -24,6 +25,7 @@ bool Memory::read(u32 address, unsigned width, u32& value) const noexcept {
         const auto physical = address & 0x1FFFFFFFu;
         if (irq_ && irq_->read(physical, width, value)) return true;
         if (dma_ && dma_->read(physical, width, value)) return true;
+        if (dma_irq_ && dma_irq_->read(physical, width, value)) return true;
     }
     const auto* p = resolve(address, width);
     if (!p) return false;
@@ -36,6 +38,7 @@ bool Memory::write(u32 address, unsigned width, u32 value) noexcept {
         const auto physical = address & 0x1FFFFFFFu;
         if (irq_ && irq_->write(physical, width, value)) return true;
         if (dma_ && dma_->write(physical, width, value)) return true;
+        if (dma_irq_ && dma_irq_->write(physical, width, value)) return true;
         if (timer_ && timer_->write(physical, width, value)) return true;
     }
     auto* p = resolve(address, width);

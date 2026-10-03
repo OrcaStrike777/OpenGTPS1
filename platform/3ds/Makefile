@@ -29,8 +29,8 @@ endif
 ifeq ($(WITH_GT2_BOOT),1)
 TARGET := opengtps1-old3ds-bootprobe
 BUILD := build-bootprobe
-export APP_TITLE := OpenGTPS1 GT2 BIOS probe
-export APP_DESCRIPTION := Native BIOS policies and GT2 startup
+export APP_TITLE := OpenGTPS1 GT2 DMA probe
+export APP_DESCRIPTION := Native DMA IRQs and GT2 startup
 endif
 export APP_AUTHOR := OpenGTPS1 contributors
 
@@ -57,7 +57,7 @@ export VPATH := $(CURDIR)/../../native/platform/3ds \
                 $(CURDIR)/../../generated/old3ds \
                 $(CURDIR)/../../native/src
 export DEPSDIR := $(CURDIR)/$(BUILD)
-export OFILES := main.o host.o stdio_files.o geometry_stitcher.o guest.o ps1_interrupts.o startup_services.o mips_suite.o boot_runtime_suite.o interrupt_tests.o bios_tests.o
+export OFILES := main.o host.o stdio_files.o geometry_stitcher.o guest.o ps1_interrupts.o ps1_dma.o startup_services.o mips_suite.o boot_runtime_suite.o interrupt_tests.o bios_tests.o dma_tests.o
 ifeq ($(WITH_GT2_PROBE),1)
 ifeq ($(wildcard ../../generated/old3ds/gt2_probe.cpp),)
 $(error Run python tools/prepare_native_gt2_probe.py with your supported disc first)

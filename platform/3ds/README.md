@@ -2,8 +2,9 @@
 
 Current milestone (2026-10-03): native MIPS/hash tests and GT2 startup through
 interrupt initialization passed the user's Old 3DS hardware test. The new
-optional boot build implements BIOS IRQ policies and reaches DMA interrupt setup.
-See [BIOS startup progress and current hardware expectations](../../docs/OLD3DS_BIOS_STARTUP.md)
+optional boot build implements native DICR and reaches BIOS CD-ROM IRQ cleanup.
+The preceding BIOS-policy milestone also passed the user's Old 3DS test.
+See [DMA startup progress and current hardware expectations](../../docs/OLD3DS_DMA_INTERRUPTS.md)
 or [content-free/native hash tests](../../docs/OLD3DS_NATIVE_GUEST.md).
 X reruns the tests.
 The old binary sizes/hashes below record the initial platform-only build.

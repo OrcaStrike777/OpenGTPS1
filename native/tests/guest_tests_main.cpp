@@ -34,6 +34,11 @@ int main() {
         std::printf("%s %s\n",bios.tests[i].passed?"PASS":"FAIL",bios.tests[i].name);
     std::printf("BIOS %u/%u\n",bios.passed,bios.count);
     if(bios.count!=bios.passed) return 1;
+    const auto dma = opengt::guest::run_dma_tests();
+    for (unsigned i=0;i<dma.count;++i)
+        std::printf("%s %s\n",dma.tests[i].passed?"PASS":"FAIL",dma.tests[i].name);
+    std::printf("DMA %u/%u\n",dma.passed,dma.count);
+    if(dma.count!=dma.passed) return 1;
     const auto boot = opengt::guest::run_boot_probe();
     if (boot.available) {
         std::printf("BOOT %s entry=%08lx pc=%08lx last=%08lx func=%08lx calls=%lu instructions=%lu boundary=%08lx reason=%s clear=%d IO=%lu\n",
@@ -49,6 +54,11 @@ int main() {
         std::printf("PAD calls=%lu flag=%lu; RCnt calls=%lu VBlank flag=%lu\n",
             (unsigned long)boot.pad_calls, (unsigned long)boot.pad_auto_ack,
             (unsigned long)boot.rcnt_calls, (unsigned long)boot.vblank_auto_ack);
+        std::printf("DICR R=%lu W=%lu state=%08lx rises=%lu completions=%lu channels R=%lu W=%lu IRQ=%03lx/%03lx\n",
+            (unsigned long)boot.dicr_reads, (unsigned long)boot.dicr_writes, (unsigned long)boot.dicr_state,
+            (unsigned long)boot.dma_irq_rises, (unsigned long)boot.dma_completions,
+            (unsigned long)boot.dma_channel_reads, (unsigned long)boot.dma_channel_writes,
+            (unsigned long)boot.irq_pending, (unsigned long)boot.irq_mask);
         for (unsigned i=0;i<boot.trace_count;++i) std::printf(" %08lx",(unsigned long)boot.trace[i]);
         std::puts("");
         const auto unshimmed = opengt::guest::run_boot_probe(false);
@@ -80,6 +90,15 @@ int main() {
             rcnt_return.instructions != 1307430 || rcnt_return.bios_calls != 3 ||
             rcnt_return.rcnt_calls != 1 || rcnt_return.vblank_auto_ack != 0) return 1;
         std::puts("PASS ChangeClearPAD/RCnt entry-return watchdog checkpoints");
+        const auto dicr_stop = opengt::guest::run_boot_probe(true, 1307516);
+        const auto dicr_crossed = opengt::guest::run_boot_probe(true, 1307517);
+        if (dicr_stop.stop != opengt::guest::Stop::budget || dicr_stop.pc != 0x8008C698 ||
+            dicr_stop.instructions != 1307513 || dicr_stop.functions != 20 ||
+            dicr_stop.crossed_dicr || dicr_stop.dicr_writes != 0 ||
+            dicr_crossed.stop != opengt::guest::Stop::budget || dicr_crossed.pc != 0x8008BCA8 ||
+            dicr_crossed.instructions != 1307514 || !dicr_crossed.crossed_dicr ||
+            dicr_crossed.dicr_writes != 1 || dicr_crossed.dicr_state != 0) return 1;
+        std::puts("PASS DICR delay-slot store watchdog checkpoints");
         if (!boot.passed || !unshimmed.passed || bounded.stop != opengt::guest::Stop::budget || bounded.instructions != 32) return 1;
     }
     return 0;

@@ -24,19 +24,22 @@ int main() {
     (void)saves; // Reserved boundary; bootstrap never writes a memory card.
     opengt::platform::Diagnostics diagnostics{};
     opengt::guest::TestReport guest_report{}, gt2_report{}, boot_operations{}, interrupt_tests{}, bios_tests{};
+    opengt::guest::TestReport dma_tests{};
     opengt::guest::BootReport boot_report{};
     const auto run_tests = [&]() {
         guest_report = opengt::guest::run_synthetic_tests();
         boot_operations = opengt::guest::run_boot_runtime_tests();
         interrupt_tests = opengt::guest::run_interrupt_tests();
         bios_tests = opengt::guest::run_bios_tests();
+        dma_tests = opengt::guest::run_dma_tests();
         gt2_report = {};
         boot_report = {};
         if (guest_report.passed == guest_report.count)
             gt2_report = opengt::guest::run_gt2_probe();
         if (gt2_report.count == 6 && gt2_report.passed == 6 &&
             boot_operations.passed == boot_operations.count &&
-            interrupt_tests.passed == interrupt_tests.count && bios_tests.passed == bios_tests.count)
+            interrupt_tests.passed == interrupt_tests.count && bios_tests.passed == bios_tests.count &&
+            dma_tests.passed == dma_tests.count)
             boot_report = opengt::guest::run_boot_probe();
     };
     run_tests();
@@ -45,6 +48,7 @@ int main() {
     diagnostics.boot_operations = &boot_operations;
     diagnostics.interrupt_tests = &interrupt_tests;
     diagnostics.bios_tests = &bios_tests;
+    diagnostics.dma_tests = &dma_tests;
     diagnostics.boot = &boot_report;
     char probe[64]{};
     std::size_t bytes_read = 0;

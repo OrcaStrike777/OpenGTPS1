@@ -1,8 +1,9 @@
 # Native BIOS IRQ policies and the GT2 DMA boundary
 
-Status, 2026-10-03: the preceding 17-entry / 1,307,424-instruction checkpoint
-passed on the user's original Old 3DS. This milestone passes host tests and
-builds with devkitARM for ARM11. Its new hardware run is pending.
+Historical checkpoint: commit `64b5e5d` passed the user's original Old 3DS test
+at 20 guest entries / 1,307,514 instructions. The current build advances further;
+see [native DICR and current hardware expectations](OLD3DS_DMA_INTERRUPTS.md).
+The results below record the earlier BIOS-policy milestone.
 
 ## BIOS behavior and references
 
