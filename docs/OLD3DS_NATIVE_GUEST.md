@@ -3,7 +3,9 @@
 Status, 2026-10-02: the user confirmed the native MIPS tests (16/16,
 `5775a33b`) and real GT2 hash tests (6/6, `2ceef133`) pass on an original Old 3DS.
 The next build adds a [bounded real startup probe](OLD3DS_BOOT_PROBE.md),
-which still needs its own hardware run. No game graphics/audio is implemented.
+whose initial checkpoint also passed on Old 3DS. The newer
+[interrupt-controller checkpoint](OLD3DS_INTERRUPTS.md) awaits its hardware run.
+No game graphics/audio is implemented.
 
 ## Runtime and generation
 

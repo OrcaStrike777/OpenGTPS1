@@ -337,16 +337,16 @@ TestReport run_boot_runtime_tests() noexcept {
         u32 v=0; ok &= m.read(0x100,4,v) && v==0x44CCBBAAu && c.stop==Stop::returned;
     }
     report.tests[report.count++] = {"SWL_SWR_all_offsets",ok,ok,1}; report.passed += ok;
-    BootIo io; u32 value=0;
+    InterruptController io; u32 value=0;
     ok = !m.read(0x1F801074,2,value);
-    m.attach_boot_io(&io);
+    m.attach_interrupts(&io);
     ok &= m.read(0x1F801074,2,value) && value==0;
     ok &= m.write(0x9F801074,2,0xFFFF);
     ok &= m.read(0xBF801074,4,value) && value==0x7FF;
-    ok &= !m.write(0x1F801070,2,0) && !m.read(0x1F801075,2,value);
+    ok &= m.write(0x1F801070,2,0) && !m.read(0x1F801075,2,value);
     ok &= !m.read(0xDF801074,2,value) && !m.read(0x1F801074,1,value);
-    ok &= io.accesses==3;
-    m.attach_boot_io(nullptr);
+    ok &= io.mask_reads==2 && io.mask_writes==1 && io.stat_writes==1;
+    m.attach_interrupts(nullptr);
     ok &= !m.read(0x1F801074,2,value);
     report.tests[report.count++] = {"I_MASK_opt_in",ok,ok,1}; report.passed += ok;
     return report;

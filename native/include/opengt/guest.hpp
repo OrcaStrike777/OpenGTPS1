@@ -1,19 +1,23 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include "opengt/ps1_interrupts.hpp"
 
 namespace opengt::guest {
+struct TimerSetup;
 using u32 = std::uint32_t;
 enum class Stop : u32 { running, returned, budget, address_load, address_store,
-                        unmapped, overflow, unknown_pc, delay_control };
-struct BootIo { u32 interrupt_mask{}, accesses{}; };
+                        unmapped, overflow, unknown_pc, delay_control, bios };
+
 
 // Caller owns storage; only retail 2 MiB or explicit devkit 8 MiB is accepted.
 // Devices, BIOS and caches are not silently backed by anonymous RAM.
 class Memory {
 public:
     Memory(std::uint8_t* ram, std::size_t bytes, std::uint8_t* scratch) noexcept;
-    void attach_boot_io(BootIo* io) noexcept { io_ = io; }
+    void attach_interrupts(InterruptController* irq) noexcept { irq_ = irq; }
+    void attach_dma_priority(DmaPriority* dma) noexcept { dma_ = dma; }
+    void attach_timer_setup(TimerSetup* timer) noexcept { timer_ = timer; }
     bool read(u32 address, unsigned width, u32& value) const noexcept;
     bool write(u32 address, unsigned width, u32 value) noexcept;
 private:
@@ -21,7 +25,9 @@ private:
     std::uint8_t* ram_;
     std::size_t bytes_;
     std::uint8_t* scratch_;
-    BootIo* io_{};
+    InterruptController* irq_{};
+    DmaPriority* dma_{};
+    TimerSetup* timer_{};
 };
 
 struct Context {

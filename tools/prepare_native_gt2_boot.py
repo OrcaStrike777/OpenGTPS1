@@ -2,7 +2,7 @@
 """Build a bounded sparse startup graph from the validated original EXE.
 
 No instructions are replaced. Explicit audited ranges end at the observed
-interrupt-setup boundary; additional calls stop as unknown targets.
+BIOS boundary; additional calls stop as unknown targets.
 """
 import hashlib
 import json
@@ -15,7 +15,10 @@ RANGES = [(0x8005D600,0x8005D698), (0x8008CE08,0x8008CE30),
           (0x8008DDB4,0x8008DE24), (0x8008DD74,0x8008DDB4),
           (0x80010998,0x800109B0), (0x8005D9BC,0x8005D9F0),
           (0x8008CE30,0x8008CEDC), (0x8008BC78,0x8008BCA8),
-          (0x8008BE0C,0x8008BE64)]
+          (0x8008BE0C,0x8008BEE4), (0x8008C314,0x8008C338),
+          (0x8007AD58,0x8007AD90), (0x8008CC78,0x8008CC84), (0x8008C548,0x8008C5A0),
+          (0x8008C638,0x8008C65C), (0x8008BCA8,0x8008BCD8),
+          (0x8008C0B4,0x8008C1FC), (0x8008C998,0x8008C9A4)]
 
 def generate(exe, system_cnf):
     if hashlib.sha256(exe).hexdigest() != EXE_HASH: raise ValueError('wrong executable')
@@ -31,21 +34,24 @@ def generate(exe, system_cnf):
     image = exe[0x800:]
     # PS-X EXE .data fields are not treated as separate BSS. Original CRT clears it.
     out = ['// Locally generated proprietary startup code; keep ignored.',
-           '#include "opengt/guest_tests.hpp"', '#include "opengt/boot_probe.hpp"',
+           '#include "opengt/guest_tests.hpp"', '#include "opengt/startup_services.hpp"', '#include "opengt/boot_probe.hpp"',
            'namespace opengt::guest {', 'namespace {',
            'const std::uint8_t image[] = {']
     out += [','.join(str(x) for x in image[i:i+64])+',' for i in range(0,len(image),64)]
-    out += ['};', '}', 'BootReport run_boot_probe(bool mask_shim, u32 budget) noexcept {',
+    out += ['};', '}', 'BootReport run_boot_probe(bool devices, u32 budget) noexcept {',
             'BootReport report{}; report.available = true;',
-            'Memory m = reset_test_memory(); BootIo io{};',
-            'if (mask_shim) m.attach_boot_io(&io);',
+            'Memory m = reset_test_memory(); InterruptController io{}; DmaPriority dma{}; TimerSetup timers{}; StartupBios bios{};',
+            'if (devices) { m.attach_interrupts(&io); m.attach_dma_priority(&dma); m.attach_timer_setup(&timers); }',
             f'for (u32 i=0;i<sizeof(image);++i) if (!m.write({backend.literal(base)}+i,1,image[i])) return report;',
             '// Poison zero-initialized BSS to prove the original guest loops clear it.',
             'for (u32 a=0x800A8D5C;a<0x801F0D60;a+=4) m.write(a,4,0xA5A5A5A5);',
             f'Context c; c.start({backend.literal(entry)}); c.write(28,{backend.literal(gp)}); c.write(29,{backend.literal(sp)});',
             f'report.entry={backend.literal(entry)};',
             'while (c.stop == Stop::running) {',
+            'io.sync_cpu(c);',
             'if (!budget--) { c.stop=Stop::budget; break; }',
+            '// Native BIOS transitions consume budget too; no zero-cost dispatch loop.',
+            'if (devices && bios.dispatch(c)) continue;',
             'if(c.pc&3){c.in_delay=c.next_delay;c.fault(Stop::address_load,c.pc);break;}',
             'switch(c.pc) {']
     for start,end in RANGES:
@@ -57,19 +63,27 @@ def generate(exe, system_cnf):
                     '(void)s;(void)t;const u32 next=c.begin();']
             if pc==start:
                 out += ['++report.functions;report.last_function=c.pc;',
-                        'if(report.trace_count<16) report.trace[report.trace_count++]=c.pc;']
+                        'if(report.trace_count<32) report.trace[report.trace_count++]=c.pc;']
             if control: out += ['if(c.in_delay){ c.stop=Stop::delay_control; break; }']
-            out += [statement, 'if(c.stop==Stop::running){report.last_pc=c.pc;c.pc=next;} break; }']
-    out += ['default:c.stop=Stop::unknown_pc;break;', '}', '}',
+            out += [statement]
+            if pc == 0x8008BE50:
+                out += ['if(c.stop==Stop::running) report.crossed_istat=true;']
+            out += ['if(c.stop==Stop::running){report.last_pc=c.pc;c.pc=next;} break; }']
+    out += ['default:c.stop=(c.pc==0xA0||c.pc==0xB0||c.pc==0xC0)?Stop::bios:Stop::unknown_pc;break;', '}', '}',
             'report.pc=c.pc;report.instructions=c.instructions;report.stop=c.stop;',
             'report.unresolved=c.stop==Stop::unmapped?c.bad_vaddr:c.pc;',
-            'report.ra=c.read(31);report.sp=c.read(29);report.io_accesses=io.accesses;',
+            'report.ra=c.read(31);report.sp=c.read(29);report.stat_reads=io.stat_reads;report.stat_writes=io.stat_writes;report.mask_reads=io.mask_reads;report.mask_writes=io.mask_writes;report.io_accesses=io.stat_reads+io.stat_writes+io.mask_reads+io.mask_writes;report.dma_reads=dma.reads;report.dma_writes=dma.writes;',
+            'report.timer_writes=timers.writes;report.bios_api=c.stop==Stop::bios?c.read(9):0;report.bios_calls=bios.calls;report.hook_buffer=bios.hook_buffer;report.irq_pending=io.pending();report.irq_mask=io.mask();',
             'report.clears_verified=true;u32 value=0;',
             'for(u32 a=0x800A8D5C;a<0x801F0D60;a+=4) if(!m.read(a,4,value)||value) report.clears_verified=false;',
             'const bool heap=m.read(0x800A8D50,4,value)&&value==0x801F0D60;',
-            'report.passed=report.clears_verified&&heap&&report.functions==9&&c.stop==Stop::unmapped&&',
-            '(mask_shim?(c.pc==0x8008BE50&&c.bad_vaddr==0x1F801070&&io.accesses==2):',
-            '(c.pc==0x8008BE44&&c.bad_vaddr==0x1F801074&&io.accesses==0));',
+            'report.passed=report.clears_verified&&heap&&',
+            '(devices?(report.crossed_istat&&c.stop==Stop::bios&&c.pc==0xB0&&c.read(9)==0x5B&&',
+            'report.functions==17&&report.instructions==1307424&&report.last_pc==0x8008C9A0&&',
+            'io.stat_reads==0&&io.stat_writes==1&&io.mask_reads==2&&io.mask_writes==2&&',
+            'dma.writes==1&&dma.value==0x33333333&&timers.writes==1&&timers.mode[1]==0x100&&',
+            'bios.calls==1&&bios.hook_buffer==0x800A7BB4):',
+            '(c.stop==Stop::unmapped&&c.pc==0x8008BE44&&c.bad_vaddr==0x1F801074&&report.io_accesses==0));',
             'return report;', '}', '}']
     return '\n'.join(out)+'\n',dict(entry=hex(entry),gp=hex(gp),sp=hex(sp),load=hex(base),size=size,
                                    ranges=[(hex(a),hex(b)) for a,b in RANGES],exe_sha256=EXE_HASH)

@@ -48,6 +48,7 @@ struct Diagnostics {
     const guest::TestReport* guest_tests{};
     const guest::TestReport* gt2_probe{};
     const guest::TestReport* boot_operations{};
+    const guest::TestReport* interrupt_tests{};
     const guest::BootReport* boot{};
     bool boot_page{true};
 };

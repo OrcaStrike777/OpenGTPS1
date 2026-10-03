@@ -1,8 +1,13 @@
 # Bounded native GT2 boot probe
 
+This document records the initial checkpoint, hardware-validated on original Old
+3DS on 2026-10-03. Current build instructions and results are in
+[the interrupt-controller milestone](OLD3DS_INTERRUPTS.md); the commands below
+now build that newer checkpoint. The older expectations are retained as history.
+
 This milestone runs the supported US Simulation executable's real entry path,
 using offline-generated C++ compiled for ARM11. The previous MIPS and GT2 hash
-build passed on an original Old 3DS. **This new boot build needs hardware validation.**
+build passed on an original Old 3DS. **The initial checkpoint passed hardware validation.**
 
 ## Reproduce
 

@@ -1,4 +1,5 @@
 #include "opengt/guest.hpp"
+#include "opengt/startup_services.hpp"
 
 namespace opengt::guest {
 Memory::Memory(std::uint8_t* ram, std::size_t bytes, std::uint8_t* scratch) noexcept
@@ -19,8 +20,10 @@ std::uint8_t* Memory::resolve(u32 address, unsigned width) const noexcept {
 }
 
 bool Memory::read(u32 address, unsigned width, u32& value) const noexcept {
-    if (io_ && (address == 0x1F801074 || address == 0x9F801074 || address == 0xBF801074) && (width == 2 || width == 4)) {
-        value = io_->interrupt_mask; ++io_->accesses; return true;
+    if (address < 0x20000000u || (address >= 0x80000000u && address < 0xC0000000u)) {
+        const auto physical = address & 0x1FFFFFFFu;
+        if (irq_ && irq_->read(physical, width, value)) return true;
+        if (dma_ && dma_->read(physical, width, value)) return true;
     }
     const auto* p = resolve(address, width);
     if (!p) return false;
@@ -29,8 +32,11 @@ bool Memory::read(u32 address, unsigned width, u32& value) const noexcept {
     return true;
 }
 bool Memory::write(u32 address, unsigned width, u32 value) noexcept {
-    if (io_ && (address == 0x1F801074 || address == 0x9F801074 || address == 0xBF801074) && (width == 2 || width == 4)) {
-        io_->interrupt_mask = value & 0x7FF; ++io_->accesses; return true;
+    if (address < 0x20000000u || (address >= 0x80000000u && address < 0xC0000000u)) {
+        const auto physical = address & 0x1FFFFFFFu;
+        if (irq_ && irq_->write(physical, width, value)) return true;
+        if (dma_ && dma_->write(physical, width, value)) return true;
+        if (timer_ && timer_->write(physical, width, value)) return true;
     }
     auto* p = resolve(address, width);
     if (!p) return false;
@@ -115,6 +121,7 @@ const char* stop_name(Stop stop) noexcept {
     case Stop::overflow: return "overflow";
     case Stop::unknown_pc: return "unknown PC";
     case Stop::delay_control: return "delay control";
+    case Stop::bios: return "unresolved BIOS";
     }
     return "unknown";
 }
