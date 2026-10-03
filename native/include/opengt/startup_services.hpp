@@ -12,7 +12,13 @@ struct TimerSetup {
 
 struct StartupBios {
     u32 hook_buffer{}, interrupt_environment{}, calls{};
-    // The one reached API with a usable desktop implementation: B(19h).
+    // Cold SIO0 policy (driver start enables it). Timer policies model the
+    // initialized BIOS kernel at executable handoff, not power-on hardware.
+    u32 pad_auto_ack{}, pad_calls{};
+    u32 timer_auto_ack[4]{1, 1, 1, 1}, rcnt_calls{};
+    // Called only after a verified pad/card VBlank handler, not on the BIOS
+    // setter or each guest instruction. No pad polling/IRQ delivery is implied.
+    bool acknowledge_pad_vblank(InterruptController&) const noexcept;
     // Returns false without changing guest state for every unsupported API.
     bool dispatch(Context&) noexcept;
 };

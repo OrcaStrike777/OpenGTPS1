@@ -90,34 +90,45 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
     if (boot_page) {
         const auto& b = *d.boot;
         const auto hex = [](std::uint32_t v) { return static_cast<unsigned long>(v); };
-        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS IRQ probe\n"
+        char boundary[32]{};
+        if (b.stop == guest::Stop::bios)
+            std::snprintf(boundary, sizeof(boundary), "BIOS %c(%02lx)",
+                          b.pc == 0xA0 ? 'A' : b.pc == 0xB0 ? 'B' : 'C', hex(b.bios_api));
+        else std::snprintf(boundary, sizeof(boundary), "%s",
+                          b.stop == guest::Stop::unmapped && b.unresolved == 0x1F8010F4 ?
+                          "DICR (DMA IRQ control)" : "unexpected stop");
+        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS BIOS probe\n"
                     "START exit / X rerun / A color\n"
                     "Y: synthetic test details\n"
                     "MIPS %u/%u hash %08lx\n"
                     "GT2 hash %u/%u sig %08lx\n"
                     "Boot runtime %u/%u / IRQ %u/%u\n"
+                    "BIOS %u/%u / handled: %lu\n"
                     "GT2 BOOT %-4s (bounded stop)\n"
                     "Entry       %08lx\nPC          %08lx\n"
-                    "Last OK     %08lx\nLast func   %08lx\n"
-                    "Functions   %lu\nInstructions %lu\n"
+                    "Last OK     %08lx\nLast entry  %08lx\n"
+                    "Guest entries %lu\nInstructions %lu\n"
                     "I_STAT R:%lu W:%lu\nI_MASK R:%lu W:%lu\n"
                     "I_STAT crossed: %s\n"
-                    "Unresolved  %08lx\nBIOS API    B(%02lx)\n"
-                    "ChangeClearPAD: %s\n"
+                    "PAD ack %s / calls: %lu\n"
+                    "VBL ack %s / calls: %lu\n"
+                    "Unresolved  %08lx\n"
+                    "Boundary: %-24s\n"
                     "Trap: %-22s\n"
-                    "BSS: %s / BIOS handled: %lu\n"
-                    "DMA writes: %lu / Timer writes: %lu\n"
+                    "BSS %s / DMA W:%lu / Timer W:%lu\n"
                     "Recent startup entries:\n",
                     d.guest_tests->passed, d.guest_tests->count, hex(d.guest_tests->signature),
                     d.gt2_probe->passed, d.gt2_probe->count, hex(d.gt2_probe->signature),
                     d.boot_operations->passed, d.boot_operations->count,
                     d.interrupt_tests->passed, d.interrupt_tests->count,
+                    d.bios_tests->passed, d.bios_tests->count, hex(b.bios_calls),
                     b.passed ? "PASS" : "FAIL", hex(b.entry), hex(b.pc), hex(b.last_pc),
                     hex(b.last_function), hex(b.functions), hex(b.instructions),
                     hex(b.stat_reads), hex(b.stat_writes), hex(b.mask_reads), hex(b.mask_writes),
-                    b.crossed_istat ? "PASS" : "FAIL", hex(b.unresolved), hex(b.bios_api),
-                    b.stop == guest::Stop::bios && b.pc == 0xB0 && b.bios_api == 0x5B ? "unresolved" : "not reached",
-                    guest::stop_name(b.stop), b.clears_verified ? "PASS" : "FAIL", hex(b.bios_calls),
+                    b.crossed_istat ? "PASS" : "FAIL", b.pad_auto_ack ? "ON " : "OFF", hex(b.pad_calls),
+                    b.vblank_auto_ack ? "ON " : "OFF", hex(b.rcnt_calls), hex(b.unresolved),
+                    boundary,
+                    guest::stop_name(b.stop), b.clears_verified ? "PASS" : "FAIL",
                     hex(b.dma_writes), hex(b.timer_writes));
         const unsigned first = b.trace_count > 5 ? b.trace_count - 5 : 0;
         for (unsigned i = first; i < b.trace_count; ++i)
@@ -150,9 +161,10 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
             std::printf("GT2 hash %u/%u sig %08lx\n", d.gt2_probe->passed, d.gt2_probe->count,
                         static_cast<unsigned long>(d.gt2_probe->signature));
         else std::printf("GT2 probe: not built or gated     \n");
-        if (d.interrupt_tests && d.boot_operations)
-            std::printf("IRQ %u/%u / Boot runtime %u/%u\n", d.interrupt_tests->passed,
-                d.interrupt_tests->count, d.boot_operations->passed, d.boot_operations->count);
+        if (d.interrupt_tests && d.boot_operations && d.bios_tests)
+            std::printf("IRQ %u/%u / Boot %u/%u / BIOS %u/%u\n", d.interrupt_tests->passed,
+                d.interrupt_tests->count, d.boot_operations->passed, d.boot_operations->count,
+                d.bios_tests->passed, d.bios_tests->count);
         std::printf("                                     \r");
         for (unsigned i = 0; i < report.count; ++i) {
             if (!report.tests[i].passed) {

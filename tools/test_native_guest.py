@@ -25,7 +25,7 @@ def main():
                ROOT / "native/tests/guest_tests_main.cpp",
                ROOT / ("generated/old3ds/gt2_probe.cpp" if args.gt2_probe else "native/tests/gt2_probe_stub.cpp")]
     sources += [ROOT / ("generated/old3ds/gt2_boot.cpp" if args.boot else "native/tests/boot_probe_stub.cpp")]
-    sources += [ROOT / "native/tests/recompiled/boot_runtime_suite.cpp", ROOT / "native/tests/interrupt_tests.cpp"]
+    sources += [ROOT / "native/tests/recompiled/boot_runtime_suite.cpp", ROOT / "native/tests/interrupt_tests.cpp", ROOT / "native/tests/bios_tests.cpp"]
     if not all(p.is_file() for p in sources): raise SystemExit("Run tools/prepare_native_gt2_boot.py for --boot, or tools/prepare_native_gt2_probe.py for --gt2-probe.")
     build = ROOT / "build" / ("native-guest-boot" if args.boot else "native-guest-gt2" if args.gt2_probe else "native-guest")
     build.mkdir(parents=True, exist_ok=True)

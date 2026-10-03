@@ -1,8 +1,9 @@
 # Native PS1 interrupt controller and GT2 startup checkpoint
 
-Status, 2026-10-03: the previous 9-entry / 1,303,078-instruction I_STAT checkpoint
-passed on an original Old 3DS. This build progresses beyond that checkpoint on PC
-and is compiled for ARM11; its new hardware run is pending.
+Historical checkpoint, hardware-validated on an original Old 3DS on 2026-10-03:
+17 guest entries / 1,307,424 instructions, stopping at B(5B) ChangeClearPAD.
+The current build advances further; see [the BIOS startup milestone](OLD3DS_BIOS_STARTUP.md).
+The expectations below record the preceding interrupt-controller milestone.
 
 ## Register behavior
 

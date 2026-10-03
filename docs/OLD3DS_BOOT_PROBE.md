@@ -2,7 +2,7 @@
 
 This document records the initial checkpoint, hardware-validated on original Old
 3DS on 2026-10-03. Current build instructions and results are in
-[the interrupt-controller milestone](OLD3DS_INTERRUPTS.md); the commands below
+[the BIOS startup milestone](OLD3DS_BIOS_STARTUP.md); the commands below
 now build that newer checkpoint. The older expectations are retained as history.
 
 This milestone runs the supported US Simulation executable's real entry path,

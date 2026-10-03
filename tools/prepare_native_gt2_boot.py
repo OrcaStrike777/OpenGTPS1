@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build a bounded sparse startup graph from the validated original EXE.
 
-No instructions are replaced. Explicit audited ranges end at the observed
-BIOS boundary; additional calls stop as unknown targets.
+No instructions are replaced. Explicit audited ranges reach the observed
+DMA interrupt-control boundary; additional calls stop as unknown targets.
 """
 import hashlib
 import json
@@ -18,7 +18,9 @@ RANGES = [(0x8005D600,0x8005D698), (0x8008CE08,0x8008CE30),
           (0x8008BE0C,0x8008BEE4), (0x8008C314,0x8008C338),
           (0x8007AD58,0x8007AD90), (0x8008CC78,0x8008CC84), (0x8008C548,0x8008C5A0),
           (0x8008C638,0x8008C65C), (0x8008BCA8,0x8008BCD8),
-          (0x8008C0B4,0x8008C1FC), (0x8008C998,0x8008C9A4)]
+          (0x8008C0B4,0x8008C1FC), (0x8008C998,0x8008C9A4),
+          (0x8008CC58,0x8008CC64), (0x8008C668,0x8008C6B4),
+          (0x8008C8E0,0x8008C904)]
 
 def generate(exe, system_cnf):
     if hashlib.sha256(exe).hexdigest() != EXE_HASH: raise ValueError('wrong executable')
@@ -74,15 +76,18 @@ def generate(exe, system_cnf):
             'report.unresolved=c.stop==Stop::unmapped?c.bad_vaddr:c.pc;',
             'report.ra=c.read(31);report.sp=c.read(29);report.stat_reads=io.stat_reads;report.stat_writes=io.stat_writes;report.mask_reads=io.mask_reads;report.mask_writes=io.mask_writes;report.io_accesses=io.stat_reads+io.stat_writes+io.mask_reads+io.mask_writes;report.dma_reads=dma.reads;report.dma_writes=dma.writes;',
             'report.timer_writes=timers.writes;report.bios_api=c.stop==Stop::bios?c.read(9):0;report.bios_calls=bios.calls;report.hook_buffer=bios.hook_buffer;report.irq_pending=io.pending();report.irq_mask=io.mask();',
+            'report.pad_auto_ack=bios.pad_auto_ack;report.vblank_auto_ack=bios.timer_auto_ack[3];report.pad_calls=bios.pad_calls;report.rcnt_calls=bios.rcnt_calls;',
             'report.clears_verified=true;u32 value=0;',
             'for(u32 a=0x800A8D5C;a<0x801F0D60;a+=4) if(!m.read(a,4,value)||value) report.clears_verified=false;',
             'const bool heap=m.read(0x800A8D50,4,value)&&value==0x801F0D60;',
             'report.passed=report.clears_verified&&heap&&',
-            '(devices?(report.crossed_istat&&c.stop==Stop::bios&&c.pc==0xB0&&c.read(9)==0x5B&&',
-            'report.functions==17&&report.instructions==1307424&&report.last_pc==0x8008C9A0&&',
-            'io.stat_reads==0&&io.stat_writes==1&&io.mask_reads==2&&io.mask_writes==2&&',
+            '(devices?(report.crossed_istat&&c.stop==Stop::unmapped&&c.pc==0x8008C698&&c.bad_vaddr==0x1F8010F4&&',
+            'c.in_delay&&c.epc==0x8008C694&&(c.cause&0x80000000u)&&',
+            'report.functions==20&&report.instructions==1307514&&report.last_pc==0x8008C694&&',
+            'io.stat_reads==0&&io.stat_writes==1&&io.mask_reads==2&&io.mask_writes==3&&io.mask()==1&&',
             'dma.writes==1&&dma.value==0x33333333&&timers.writes==1&&timers.mode[1]==0x100&&',
-            'bios.calls==1&&bios.hook_buffer==0x800A7BB4):',
+            'bios.calls==3&&bios.hook_buffer==0x800A7BB4&&bios.pad_calls==1&&bios.pad_auto_ack==0&&',
+            'bios.rcnt_calls==1&&bios.timer_auto_ack[3]==0):',
             '(c.stop==Stop::unmapped&&c.pc==0x8008BE44&&c.bad_vaddr==0x1F801074&&report.io_accesses==0));',
             'return report;', '}', '}']
     return '\n'.join(out)+'\n',dict(entry=hex(entry),gp=hex(gp),sp=hex(sp),load=hex(base),size=size,

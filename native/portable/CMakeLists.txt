@@ -18,7 +18,7 @@ add_library(opengt_guest STATIC ../runtime/guest.cpp ../runtime/ps1_interrupts.c
 target_include_directories(opengt_guest PUBLIC ../include)
 target_compile_features(opengt_guest PUBLIC cxx_std_17)
 
-add_library(opengt_guest_tests STATIC ../tests/recompiled/mips_suite.cpp ../tests/recompiled/boot_runtime_suite.cpp ../tests/interrupt_tests.cpp)
+add_library(opengt_guest_tests STATIC ../tests/recompiled/mips_suite.cpp ../tests/recompiled/boot_runtime_suite.cpp ../tests/interrupt_tests.cpp ../tests/bios_tests.cpp)
 target_link_libraries(opengt_guest_tests PUBLIC opengt_guest)
 option(OPENGT_GT2_PROBE "Build the locally generated, disc-validated GT2 hash probe" OFF)
 option(OPENGT_GT2_BOOT "Build the locally generated bounded GT2 startup probe" OFF)

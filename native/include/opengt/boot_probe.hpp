@@ -9,6 +9,7 @@ struct BootReport {
     u32 stat_reads{}, stat_writes{}, mask_reads{}, mask_writes{};
     u32 dma_reads{}, dma_writes{}, timer_writes{};
     u32 bios_api{}, bios_calls{}, hook_buffer{}, irq_pending{}, irq_mask{};
+    u32 pad_auto_ack{}, vblank_auto_ack{}, pad_calls{}, rcnt_calls{};
     Stop stop{Stop::running};
     u32 trace[32]{}; unsigned trace_count{};
 };
@@ -17,4 +18,5 @@ struct BootReport {
 BootReport run_boot_probe(bool devices = true, u32 budget = 2000000) noexcept;
 TestReport run_boot_runtime_tests() noexcept;
 TestReport run_interrupt_tests() noexcept;
+TestReport run_bios_tests() noexcept;
 }

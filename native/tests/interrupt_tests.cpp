@@ -85,7 +85,7 @@ TestReport run_interrupt_tests() noexcept {
     ok &= bios.dispatch(c) && bios.hook_buffer == 0x80001038 &&
           bios.interrupt_environment == 0x80001002 && bios.calls == 1 &&
           c.pc == 0x80010000 && c.next_pc == 0x80010004 && c.read(2) == 0x123;
-    c.start(0xB0); c.write(9, 0x5B);
+    c.start(0xB0); c.write(9, 0x5C);
     ok &= !bios.dispatch(c) && c.pc == 0xB0 && bios.calls == 1;
     check("IRQ_startup_helpers", ok);
     return report;
