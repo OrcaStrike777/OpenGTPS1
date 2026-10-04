@@ -1,11 +1,11 @@
 # Old 3DS bootstrap
 
-Current milestone (2026-10-04): all diagnostics through `008b3a3` passed the
-user's physical Old 3DS test. The new optional boot build handles BIOS printf,
-captures the formatted CdInit output, and stops at the first CD-ROM index write
-at 1F801800 after 58 guest entries. Host tests and ARM builds pass; this hardware
+Current milestone (2026-10-04): all diagnostics through `6f37885` passed the
+user's physical Old 3DS test. The new optional boot build handles CD-ROM index
+selection and stops at the bank-1 interrupt-flags read at 1F801803 after
+58 guest entries / 3,397,016 instructions. Host tests and ARM builds pass; this hardware
 run is pending. Prior text tearing remains recorded as diagnostic UI behavior.
-See [BIOS printf progress and hardware expectations](../../docs/OLD3DS_BIOS_PRINTF.md)
+See [CD-ROM index progress and hardware expectations](../../docs/OLD3DS_CDROM_INDEX.md)
 or [content-free/native hash tests](../../docs/OLD3DS_NATIVE_GUEST.md).
 X reruns the tests.
 The old binary sizes/hashes below record the initial platform-only build.

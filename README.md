@@ -7,9 +7,9 @@ port. See the [port plan](docs/OLD3DS_PORT_PLAN.md) and
 [native dependency boundaries](docs/OLD3DS_DEPENDENCIES.md). The documentation
 below describes the upstream Windows release.
 
-The original bootstrap and native startup through `008b3a3` passed Old 3DS
-hardware tests. The current build handles [BIOS printf](docs/OLD3DS_BIOS_PRINTF.md),
-preserves CdInit console output, and reaches its first CD-ROM index write.
+The original bootstrap and native startup through `6f37885` passed Old 3DS
+hardware tests. The current build handles [CD-ROM index selection](docs/OLD3DS_CDROM_INDEX.md)
+and reaches CdInit's bank-1 interrupt-flags read at 1F801803.
 Host tests and ARM11 builds pass; this new hardware checkpoint is pending.
 
 OpenGTPS1 0.9b is an experimental static-recompilation port of the US

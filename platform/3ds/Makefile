@@ -57,7 +57,7 @@ export VPATH := $(CURDIR)/../../native/platform/3ds \
                 $(CURDIR)/../../generated/old3ds \
                 $(CURDIR)/../../native/src
 export DEPSDIR := $(CURDIR)/$(BUILD)
-export OFILES := main.o host.o stdio_files.o geometry_stitcher.o guest.o ps1_interrupts.o ps1_dma.o ps1_gpu.o startup_services.o mips_suite.o boot_runtime_suite.o interrupt_tests.o bios_tests.o dma_tests.o gpu_tests.o
+export OFILES := main.o host.o stdio_files.o geometry_stitcher.o guest.o ps1_interrupts.o ps1_dma.o ps1_gpu.o ps1_cdrom.o startup_services.o mips_suite.o boot_runtime_suite.o interrupt_tests.o bios_tests.o dma_tests.o gpu_tests.o cdrom_tests.o
 ifeq ($(WITH_GT2_PROBE),1)
 ifeq ($(wildcard ../../generated/old3ds/gt2_probe.cpp),)
 $(error Run python tools/prepare_native_gt2_probe.py with your supported disc first)

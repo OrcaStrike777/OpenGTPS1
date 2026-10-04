@@ -2,7 +2,7 @@
 """Build a bounded sparse startup graph from the validated original EXE.
 
 No instructions are replaced. Explicit audited ranges reach the original
-VBlank callbacks and CdInit's first CD-ROM index write; other calls stop as unknown targets.
+VBlank callbacks and CdInit's bank-1 CD-ROM interrupt-flags read; other calls stop as unknown targets.
 """
 import hashlib
 import json
@@ -27,7 +27,7 @@ RANGES = [(0x8005D600,0x8005D698), (0x8008CE08,0x8008CE30),
           (0x80010928,0x80010954), (0x8007F830,0x8007F848),
           (0x8008CCA8,0x8008CCB4),
           (0x80089F38,0x80089F50), (0x80089FC8,0x80089FD8),
-          (0x8008B6D8,0x8008B758), (0x8008E00C,0x8008E018),
+          (0x8008B6D8,0x8008B768), (0x8008E00C,0x8008E018),
           (0x8008DFF4,0x8008E000)]
 
 def generate(exe, system_cnf):
@@ -44,15 +44,15 @@ def generate(exe, system_cnf):
     image = exe[0x800:]
     # PS-X EXE .data fields are not treated as separate BSS. Original CRT clears it.
     out = ['// Locally generated proprietary startup code; keep ignored.',
-           '#include "opengt/guest_tests.hpp"', '#include "opengt/ps1_dma.hpp"', '#include "opengt/ps1_gpu.hpp"', '#include "opengt/startup_services.hpp"', '#include "opengt/boot_probe.hpp"',
+           '#include "opengt/guest_tests.hpp"', '#include "opengt/ps1_dma.hpp"', '#include "opengt/ps1_gpu.hpp"', '#include "opengt/ps1_cdrom.hpp"', '#include "opengt/startup_services.hpp"', '#include "opengt/boot_probe.hpp"',
            'namespace opengt::guest {', 'namespace {',
            'const std::uint8_t image[] = {']
     out += [','.join(str(x) for x in image[i:i+64])+',' for i in range(0,len(image),64)]
     out += ['};', '}', 'BootReport run_boot_probe(bool devices, u32 budget, bool schedule_vblank) noexcept {',
             'BootReport report{}; report.available = true;',
             'Memory m = reset_test_memory(); InterruptController io{}; DmaInterrupts dicr(io); DmaPriority dma{}; TimerSetup timers{}; StartupBios bios{};',
-            'VBlankClock video{}; GpuControl gpu(video);',
-            'if (devices) { m.attach_interrupts(&io); m.attach_dma_priority(&dma); m.attach_dma_interrupts(&dicr); m.attach_timer_setup(&timers); m.attach_gpu_control(&gpu); }',
+            'VBlankClock video{}; GpuControl gpu(video); CdromRegisters cd;',
+            'if (devices) { m.attach_interrupts(&io); m.attach_dma_priority(&dma); m.attach_dma_interrupts(&dicr); m.attach_timer_setup(&timers); m.attach_gpu_control(&gpu); m.attach_cdrom(&cd); }',
             f'for (u32 i=0;i<sizeof(image);++i) if (!m.write({backend.literal(base)}+i,1,image[i])) return report;',
             '// Poison zero-initialized BSS to prove the original guest loops clear it.',
             'for (u32 a=0x800A8D5C;a<0x801F0D60;a+=4) m.write(a,4,0xA5A5A5A5);',
@@ -97,6 +97,7 @@ def generate(exe, system_cnf):
             'report.puts_calls=bios.puts_calls;report.printf_calls=bios.printf_calls;report.console_size=bios.console_size;',
             'static_assert(sizeof(report.console)==sizeof(bios.console));',
             'for(unsigned i=0;i<sizeof(report.console);++i) report.console[i]=bios.console[i];',
+            'report.cd_writes=cd.writes;report.cd_reads=cd.reads;report.cd_bank=cd.bank();report.cd_status=cd.status();',
             'report.gpu_writes=gpu.writes;report.gpu_reads=gpu.reads;report.gpu_status=gpu.status();',
             'report.pc=c.pc;report.instructions=c.instructions;report.stop=c.stop;',
             'report.unresolved=c.stop==Stop::unmapped?c.bad_vaddr:c.pc;',
@@ -127,16 +128,17 @@ def generate(exe, system_cnf):
             'bios.syscall_calls==1&&bios.critical_entries==1&&bios.critical_exits==1&&',
             'bios.rcnt_calls==1&&bios.timer_auto_ack[3]==0&&',
             '(schedule_vblank?(',
-            'c.stop==Stop::unmapped&&c.pc==0x8008B754&&c.bad_vaddr==0x1F801800&&c.read(2)==1&&',
-            'report.functions==58&&report.instructions==3397012&&report.last_pc==0x8008B750&&',
-            'video.edges==6&&video.phase==734&&bios.irq_entries==4&&bios.irq_returns==4&&!bios.irq_active&&',
+            'c.stop==Stop::unmapped&&c.pc==0x8008B764&&c.bad_vaddr==0x1F801803&&c.read(2)==0x1F801803&&',
+            'report.functions==58&&report.instructions==3397016&&report.last_pc==0x8008B760&&',
+            'video.edges==6&&video.phase==742&&bios.irq_entries==4&&bios.irq_returns==4&&!bios.irq_active&&',
             'bios.irq_resume_pc==0x80010974&&bios.irq_hook_pc==0x8008BE74&&',
             'report.entered_vblank_callback&&report.sdk_vblank_counter==4&&report.guest_in_interrupt==0&&',
             'report.vblank_counter==4&&report.vblank_callback==0&&gpu.writes==4&&gpu.reads==0&&gpu.status()==0x14802000&&',
             'report.vblank_polls==417691&&io.stat_reads==12&&io.stat_writes==5&&io.mask_reads==16&&',
+            'cd.writes==1&&cd.reads==0&&cd.bank()==1&&cd.status()==0x19&&',
             'bios.puts_calls==1&&bios.printf_calls==1&&console_ok&&',
             'm.read(0x800A7B88,4,value)&&value==0x8008BA2C&&',
-            'c.sr==0x401&&c.cause==0x1C&&c.epc==0x8008B754):(',
+            'c.sr==0x401&&c.cause==0x1C&&c.epc==0x8008B764):(',
             'report.vblank_counter==0&&report.vblank_callback==0x80010928&&gpu.writes==0&&',
             'report.waiting_vblank&&c.pc==0x80010974&&report.functions==27&&report.instructions==1999995&&report.last_pc==0x80010970&&',
             'report.vblank_polls==138471&&io.stat_reads==0&&io.stat_writes==1&&io.mask_reads==3&&',

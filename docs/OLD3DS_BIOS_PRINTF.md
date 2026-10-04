@@ -113,5 +113,8 @@ the host hex log. The shorter footer keeps this longer output within the native
 text row; presentation timing is unchanged. Previously reported transient
 tearing remains diagnostic UI behavior without evidence of guest-state failure.
 
-Physical validation of this new checkpoint is pending. PASS verifies the exact
-unresolved boundary, not completed CdInit, CD emulation or a playable game.
+Physical validation of `6f37885` passed on the user's Old 3DS, with all current
+diagnostics passing and the expected 58 entries / 3,397,012 instructions.
+It is published on `origin/old3ds-port`. The next checkpoint is documented in
+[CD-ROM index selection](OLD3DS_CDROM_INDEX.md). PASS verifies the exact unresolved
+boundary, not completed CdInit, CD emulation or a playable game.

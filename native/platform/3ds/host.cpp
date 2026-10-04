@@ -100,8 +100,8 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
             std::snprintf(boundary, sizeof(boundary), "BIOS %c(%02lx)%s",
                           b.pc == 0xA0 ? 'A' : b.pc == 0xB0 ? 'B' : 'C', hex(b.bios_api),
                           b.bios_api == 0x3F ? (b.pc == 0xA0 ? " printf" : " puts") : "");
-        else if (b.stop == guest::Stop::unmapped && b.unresolved == 0x1F801800)
-            std::snprintf(boundary, sizeof(boundary), "CD-ROM index select");
+        else if (b.stop == guest::Stop::unmapped && b.unresolved == 0x1F801803 && b.cd_bank == 1)
+            std::snprintf(boundary, sizeof(boundary), "CD-ROM IRQ flags (bank1)");
         else if (b.waiting_vblank)
             std::snprintf(boundary, sizeof(boundary), "VBlank IRQ/callback wait");
         else if (b.stop == guest::Stop::syscall)
@@ -111,7 +111,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
         else std::snprintf(boundary, sizeof(boundary), "%s",
                           b.stop == guest::Stop::unmapped && b.unresolved == 0x1F8010F4 ?
                           "DICR (DMA IRQ control)" : "unexpected stop");
-        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS BIOS probe\n"
+        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS CD probe\n"
                     "START exit / X rerun / A color\n"
                     "Y: synthetic test details\n"
                     "MIPS %u/%u hash %08lx\n"
@@ -127,7 +127,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     "GP1 W:%lu status:%08lx GPU %u/%u\n"
                     "VBL edges:%lu IRQ enter:%lu ret:%lu\n"
                     "Callback:%s / IRQ active:%u SR:%03lx\n"
-                    "Crossed I_STAT:%s DICR:%s\n"
+                    "CD %u/%u bank:%lu R:%lu W:%lu\n"
                     "VBL count:%lu/4 SDK count:%lu\n"
                     "Unresolved  %08lx\n"
                     "Boundary: %-24s\n"
@@ -147,7 +147,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     d.gpu_tests->passed, d.gpu_tests->count,
                     hex(b.vblank_edges), hex(b.irq_entries), hex(b.irq_returns),
                     b.entered_vblank_callback ? "YES" : "NO", static_cast<unsigned>(b.irq_active), hex(b.sr),
-                    b.crossed_istat ? "PASS" : "FAIL", b.crossed_dicr ? "PASS" : "FAIL",
+                    d.cdrom_tests->passed, d.cdrom_tests->count, hex(b.cd_bank), hex(b.cd_reads), hex(b.cd_writes),
                     hex(b.vblank_counter), hex(b.sdk_vblank_counter), hex(b.unresolved),
                     boundary,
                     guest::stop_name(b.stop), b.clears_verified ? "PASS" : "FAIL",
@@ -187,7 +187,8 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
             std::printf("IRQ %u/%u Boot %u/%u BIOS %u/%u DMA %u/%u\n", d.interrupt_tests->passed,
                 d.interrupt_tests->count, d.boot_operations->passed, d.boot_operations->count,
                 d.bios_tests->passed, d.bios_tests->count, d.dma_tests->passed, d.dma_tests->count);
-        if (d.gpu_tests) std::printf("GPU %u/%u\n", d.gpu_tests->passed, d.gpu_tests->count);
+        if (d.gpu_tests) std::printf("GPU %u/%u ", d.gpu_tests->passed, d.gpu_tests->count);
+        if (d.cdrom_tests) std::printf("CD %u/%u\n", d.cdrom_tests->passed, d.cdrom_tests->count);
         std::printf("                                     \r");
         for (unsigned i = 0; i < report.count; ++i) {
             if (!report.tests[i].passed) {

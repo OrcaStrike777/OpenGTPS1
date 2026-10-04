@@ -44,6 +44,11 @@ int main() {
         std::printf("%s %s\n",gpu.tests[i].passed?"PASS":"FAIL",gpu.tests[i].name);
     std::printf("GPU %u/%u\n",gpu.passed,gpu.count);
     if(gpu.count!=gpu.passed) return 1;
+    const auto cd = opengt::guest::run_cdrom_tests();
+    for (unsigned i=0;i<cd.count;++i)
+        std::printf("%s %s\n",cd.tests[i].passed?"PASS":"FAIL",cd.tests[i].name);
+    std::printf("CD %u/%u\n",cd.passed,cd.count);
+    if(cd.count!=cd.passed) return 1;
     const auto boot = opengt::guest::run_boot_probe();
     if (boot.available) {
         std::printf("BOOT %s entry=%08lx pc=%08lx last=%08lx func=%08lx calls=%lu instructions=%lu boundary=%08lx reason=%s clear=%d IO=%lu\n",
@@ -174,7 +179,7 @@ int main() {
             first_return.gpu_writes != 1 || first_return.sr != 0x401) return 1;
         if (boot.irq_returns != 4 || boot.irq_active || boot.vblank_counter != 4 ||
             boot.vblank_callback != 0 || boot.gpu_writes != 4 || boot.gpu_reads != 0 ||
-            boot.gpu_status != 0x14802000 || boot.pc != 0x8008B754 || boot.unresolved != 0x1F801800 ||
+            boot.gpu_status != 0x14802000 || boot.pc != 0x8008B764 || boot.unresolved != 0x1F801803 ||
             boot.puts_calls != 1 || boot.printf_calls != 1 || boot.console_size != 23) return 1;
         const auto puts_before = opengt::guest::run_boot_probe(true, 3396902);
         const auto puts_after = opengt::guest::run_boot_probe(true, 3396903);
@@ -193,11 +198,19 @@ int main() {
             printf_after.instructions != printf_before.instructions || printf_after.printf_calls != 1 ||
             printf_after.console_size != 23 || printf_after.bios_calls != printf_before.bios_calls + 1 ||
             printf_after.vblank_phase != printf_before.vblank_phase) return 1;
-        if (cd_before.stop != opengt::guest::Stop::budget || cd_before.pc != boot.pc ||
-            cd_before.instructions + 1 != boot.instructions || cd_before.irq_mask != 13 ||
+        const auto cd_after = opengt::guest::run_boot_probe(true, 3397027);
+        const auto cd_read_before = opengt::guest::run_boot_probe(true, 3397030);
+        if (cd_after.stop != opengt::guest::Stop::budget || cd_after.pc != 0x8008B758 ||
+            cd_after.instructions != 3397012 || cd_after.cd_writes != 1 || cd_after.cd_bank != 1 ||
+            cd_after.cd_status != 0x19 || cd_after.cd_reads != 0 || cd_after.cause != 0 ||
+            cd_read_before.stop != opengt::guest::Stop::budget || cd_read_before.pc != boot.pc ||
+            cd_read_before.instructions + 1 != boot.instructions || cd_read_before.cause != 0 ||
+            boot.cd_writes != 1 || boot.cd_reads != 0 || boot.cd_bank != 1 || boot.cd_status != 0x19) return 1;
+        if (cd_before.stop != opengt::guest::Stop::budget || cd_before.pc != 0x8008B754 ||
+            cd_before.instructions + 1 != cd_after.instructions || cd_before.cd_writes != 0 || cd_before.cd_bank != 0 || cd_before.irq_mask != 13 ||
             cd_before.mask_writes != 7 || cd_before.cause != 0 ||
             boot.stop != opengt::guest::Stop::unmapped || boot.cause != 0x1C || boot.epc != boot.pc) return 1;
-        std::puts("PASS printf capture / guest return / CD index store checkpoints");
+        std::puts("PASS printf capture / guest return / CD index store / IRQ flags read checkpoints");
         std::puts("PASS puts entry / captured output / guest return checkpoints");
         std::puts("PASS four guest callbacks / BIOS returns / CdInit CD-ROM boundary");
         std::puts("PASS IRQ hook / guest ack / callback / GPU delay-slot continuation checkpoints");
