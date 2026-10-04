@@ -64,6 +64,12 @@ void Context::load(unsigned index, u32 value) noexcept {
 void Context::fault(Stop reason, u32 address) noexcept {
     stop = reason;
     epc = in_delay ? pc - 4 : pc;
+    if (reason == Stop::syscall) {
+        // Exception code 8; preserve pending IRQs and leave BadVAddr alone.
+        cause = (cause & ~0x8000007Cu) | (in_delay ? 0x80000000u : 0) | 0x20u;
+        sr = (sr & ~0x3Fu) | ((sr << 2) & 0x3Fu);
+        return;
+    }
     const u32 code = reason == Stop::overflow ? 12u : reason == Stop::unmapped ? 7u :
                      reason == Stop::address_store ? 5u : 4u;
     cause = (in_delay ? 0x80000000u : 0) | (code << 2);
@@ -125,6 +131,7 @@ const char* stop_name(Stop stop) noexcept {
     case Stop::unknown_pc: return "unknown PC";
     case Stop::delay_control: return "delay control";
     case Stop::bios: return "unresolved BIOS";
+    case Stop::syscall: return "unresolved syscall";
     }
     return "unknown";
 }

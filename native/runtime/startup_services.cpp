@@ -1,6 +1,30 @@
 #include "opengt/startup_services.hpp"
 
 namespace opengt::guest {
+namespace {
+u32 return_status(u32 saved) noexcept {
+    // R3000 RFE restores the current/previous KU/IE pairs, retaining old pair.
+    return (saved & ~0xFu) | ((saved >> 2) & 0xFu);
+}
+}
+bool StartupBios::dispatch_syscall(Context& c) noexcept {
+    if (c.stop != Stop::syscall || c.in_delay || c.next_delay || c.pending_register ||
+        (c.read(4) != 1 && c.read(4) != 2)) return false;
+    if (c.read(4) == 1) {
+        c.write(2, (c.sr & 0x404) == 0x404 ? 1 : 0);
+        c.sr &= ~u32{0x404};
+        ++critical_entries;
+    } else {
+        c.sr |= 0x404;
+        ++critical_exits;
+    }
+    c.sr = return_status(c.sr);
+    c.pc = c.epc + 4;
+    c.next_pc = c.pc + 4;
+    c.stop = Stop::running;
+    ++syscall_calls;
+    return true;
+}
 bool TimerSetup::write(u32 physical, unsigned width, u32 value) noexcept {
     if ((width != 2 && width != 4) || physical < 0x1F801104 || physical > 0x1F801124 ||
         ((physical - 0x1F801104) & 0xF)) return false;
@@ -14,7 +38,19 @@ bool TimerSetup::write(u32 physical, unsigned width, u32 value) noexcept {
 }
 bool StartupBios::dispatch(Context& c) noexcept {
     if (c.stop != Stop::running || c.next_delay || c.pending_register) return false;
-    if (c.pc == 0xB0 && c.read(9) == 0x19) {
+    if (c.pc == 0xA0 && (c.read(9) == 0x72 || c.read(9) == 0x56)) {
+        // _96_remove enters critical state, closes ACK/DNE/RDY/END/ERR and
+        // attempts handler dequeue, without leaving the critical section.
+        // Model only this lifecycle projection; retail dequeue is bugged.
+        const u32 saved = (c.sr & ~0x3Fu) | ((c.sr << 2) & 0x3Fu);
+        c.sr = return_status(saved & ~u32{0x404});
+        ++critical_entries;
+        cd_events_open = 0;
+        cd_close_attempts += 5;
+        ++cd_dequeue_attempts;
+        cd_dequeue_unresolved = true;
+        ++cd_remove_calls;
+    } else if (c.pc == 0xB0 && c.read(9) == 0x19) {
         hook_buffer = c.read(4);
         // Matches BiosB's IntrEnvInInterruptAddr projection, retained for a future
         // callback dispatcher. Only registration runs here; the guest setjmp ran

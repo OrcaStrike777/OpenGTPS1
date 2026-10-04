@@ -6,7 +6,7 @@ from generate_mips_tests import backend, BASE, r
 
 class NativeEmitterTests(unittest.TestCase):
     def test_unsupported_instructions(self):
-        for word in (0xFFFFFFFF, 0x48000000, 0x40086000, 0x88080000, 0x0000000C):
+        for word in (0xFFFFFFFF, 0x48000000, 0x40086000, 0x88080000, 0x0000000D):
             with self.subTest(word=hex(word)), self.assertRaises(ValueError):
                 backend.emit_function(dict(name="bad", base=BASE, words=[word]))
 

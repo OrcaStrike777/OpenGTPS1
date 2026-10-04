@@ -7,8 +7,10 @@ port. See the [port plan](docs/OLD3DS_PORT_PLAN.md) and
 [native dependency boundaries](docs/OLD3DS_DEPENDENCIES.md). The documentation
 below describes the upstream Windows release.
 
-The original bootstrap has passed an Old 3DS hardware test. The next build adds
-[native MIPS execution tests and a validated GT2 hash-function probe](docs/OLD3DS_NATIVE_GUEST.md).
+The original bootstrap and earlier native startup milestones passed Old 3DS
+hardware tests. The current build passes BIOS CD cleanup and critical-section
+syscalls, then reaches the [original VBlank callback wait](docs/OLD3DS_SYSCALLS_VBLANK.md).
+Host tests and ARM11 build pass; this new hardware checkpoint is pending.
 
 OpenGTPS1 0.9b is an experimental static-recompilation port of the US
 Gran Turismo 2 **Simulation Disc** (`SCUS-94488`, NTSC-U revision 2) and

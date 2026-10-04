@@ -8,7 +8,7 @@ struct TimerSetup;
 class DmaInterrupts;
 using u32 = std::uint32_t;
 enum class Stop : u32 { running, returned, budget, address_load, address_store,
-                        unmapped, overflow, unknown_pc, delay_control, bios };
+                        unmapped, overflow, unknown_pc, delay_control, bios, syscall };
 
 
 // Caller owns storage; only retail 2 MiB or explicit devkit 8 MiB is accepted.

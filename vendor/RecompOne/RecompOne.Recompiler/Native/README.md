@@ -32,12 +32,18 @@ Control transfers inside a branch slot stop as unsupported/unpredictable.
 Supported integer subset: SLL/SRL/SRA, SLLV/SRLV/SRAV, ADD/ADDU/SUB/SUBU,
 ADDI/ADDIU, AND/OR/XOR/NOR, ANDI/ORI/XORI, LUI, SLT/SLTU/SLTI/SLTIU,
 MULT/MULTU/DIV/DIVU, MFHI/MFLO/MTHI/MTLO, LB/LBU/LH/LHU/LW, SB/SH/SW,
-BEQ/BNE/BLEZ/BGTZ/BLTZ/BGEZ, J/JAL/JR/JALR and NOP. JALR with identical
+SWL/SWR (RAM), BEQ/BNE/BLEZ/BGTZ/BLTZ/BGEZ, J/JAL/JR/JALR, SYSCALL and NOP. JALR with identical
 source and link registers is rejected. The runtime models arithmetic and
 alignment diagnostic traps, not exception-vector execution.
 
-Not implemented: LWL/LWR/SWL/SWR, COP instructions/GTE, link variants of REGIMM
-branches, interrupts, cache isolation, MMIO, BIOS, relocation/overlay dispatch,
+SYSCALL records an exception diagnostic including the status-stack push and
+load retirement. A caller may explicitly dispatch supported startup BIOS
+SYS(1/2) traps and resume the emitted function. Unknown APIs and delay-slot
+syscalls stay stopped. See `docs/OLD3DS_SYSCALLS_VBLANK.md` for this opt-in
+policy, the narrow native MMIO/BIOS models, and the authentic GT2 checkpoint.
+
+Not implemented: LWL/LWR, COP instructions/GTE, link variants of REGIMM
+branches, interrupt delivery, cache isolation, general MMIO/BIOS, relocation/overlay dispatch,
 self-modifying code, or guest exceptions returning through vectors. Minimal
 COP0 storage supplies SR, Cause, EPC, BadVAddr and PRId for diagnostics; it is
 not a working privileged coprocessor. This is not yet a full GT2 execution engine.

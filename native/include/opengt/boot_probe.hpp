@@ -12,6 +12,11 @@ struct BootReport {
     u32 pad_auto_ack{}, vblank_auto_ack{}, pad_calls{}, rcnt_calls{};
     u32 dicr_reads{}, dicr_writes{}, dicr_state{}, dma_completions{}, dma_irq_rises{};
     u32 dma_channel_reads{}, dma_channel_writes{};
+    u32 sr{}, cause{}, epc{}, syscall_api{}, syscall_calls{}, critical_entries{}, critical_exits{};
+    u32 cd_remove_calls{}, cd_events_open{}, cd_close_attempts{}, cd_dequeue_attempts{};
+    bool cd_dequeue_unresolved{};
+    u32 vblank_callback{}, vblank_counter{}, vblank_polls{};
+    bool waiting_vblank{};
     Stop stop{Stop::running};
     u32 trace[32]{}; unsigned trace_count{};
 };

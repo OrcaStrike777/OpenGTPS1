@@ -1,5 +1,8 @@
 # Native DICR and the next GT2 startup boundary
 
+Historical checkpoint at `7c0d7b2`. The current build continues through this
+boundary; see [BIOS syscalls and the VBlank wait](OLD3DS_SYSCALLS_VBLANK.md).
+
 Status: the preceding BIOS milestone, commit `64b5e5d`, passed on an original
 Old 3DS. This DICR milestone passes host tests, builds for ARM11 and passes
 devkitPro's 3DSX container check. Its new hardware run is pending.

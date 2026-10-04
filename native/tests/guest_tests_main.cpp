@@ -61,6 +61,13 @@ int main() {
             (unsigned long)boot.irq_pending, (unsigned long)boot.irq_mask);
         for (unsigned i=0;i<boot.trace_count;++i) std::printf(" %08lx",(unsigned long)boot.trace[i]);
         std::puts("");
+        std::printf("CD remove=%lu events=%02lx close=%lu dequeue=%lu unresolved=%d; SYS calls=%lu enter=%lu exit=%lu SR=%08lx Cause=%08lx EPC=%08lx\n",
+            (unsigned long)boot.cd_remove_calls, (unsigned long)boot.cd_events_open,
+            (unsigned long)boot.cd_close_attempts, (unsigned long)boot.cd_dequeue_attempts, boot.cd_dequeue_unresolved,
+            (unsigned long)boot.syscall_calls, (unsigned long)boot.critical_entries, (unsigned long)boot.critical_exits,
+            (unsigned long)boot.sr, (unsigned long)boot.cause, (unsigned long)boot.epc);
+        std::printf("VBlank wait=%d callback=%08lx counter=%lu polls=%lu\n",boot.waiting_vblank,
+            (unsigned long)boot.vblank_callback,(unsigned long)boot.vblank_counter,(unsigned long)boot.vblank_polls);
         const auto unshimmed = opengt::guest::run_boot_probe(false);
         const auto bounded = opengt::guest::run_boot_probe(true, 32);
         std::printf("Unshimmed %s PC=%08lx boundary=%08lx; watchdog %s instructions=%lu\n",
@@ -99,6 +106,33 @@ int main() {
             dicr_crossed.instructions != 1307514 || !dicr_crossed.crossed_dicr ||
             dicr_crossed.dicr_writes != 1 || dicr_crossed.dicr_state != 0) return 1;
         std::puts("PASS DICR delay-slot store watchdog checkpoints");
+        const auto cd_stop = opengt::guest::run_boot_probe(true, 1307599);
+        const auto cd_return = opengt::guest::run_boot_probe(true, 1307600);
+        const auto sys_before = opengt::guest::run_boot_probe(true, 1307603);
+        const auto sys_trap = opengt::guest::run_boot_probe(true, 1307604);
+        const auto sys_return = opengt::guest::run_boot_probe(true, 1307605);
+        const auto reset_return = opengt::guest::run_boot_probe(true, 1307616);
+        if (cd_stop.pc != 0xA0 || cd_stop.instructions != 1307596 || cd_stop.cd_remove_calls != 0 ||
+            cd_return.pc != 0x8008BEC8 || cd_return.instructions != 1307596 ||
+            cd_return.cd_remove_calls != 1 || cd_return.cd_events_open != 0 || cd_return.critical_entries != 1 ||
+            (cd_return.sr & 0x401) != 0 || sys_before.pc != 0x8008C94C ||
+            sys_before.instructions != 1307599 || sys_before.syscall_calls != 0 ||
+            sys_trap.pc != 0x8008C94C || sys_trap.instructions != 1307600 ||
+            sys_trap.cause != 0x20 || sys_trap.epc != 0x8008C94C || sys_trap.syscall_calls != 0 ||
+            sys_return.pc != 0x8008C950 || sys_return.instructions != 1307600 ||
+            sys_return.syscall_calls != 1 || sys_return.sr != 0x401 || sys_return.last_pc != 0x8008C94C ||
+            reset_return.pc != 0x800109B0 || reset_return.instructions != 1307611 || reset_return.functions != 24)
+            return 1;
+        std::puts("PASS CD cleanup / SYS trap-resume / ResetCallback checkpoints");
+        const auto wait_start = opengt::guest::run_boot_probe(true, 1307648);
+        const auto wait_loop = opengt::guest::run_boot_probe(true, 1307653);
+        if (!wait_start.waiting_vblank || wait_start.pc != 0x8001096C || wait_start.instructions != 1307643 ||
+            wait_start.vblank_counter != 0 || wait_start.vblank_polls != 0 ||
+            !wait_loop.waiting_vblank || wait_loop.pc != wait_start.pc ||
+            wait_loop.vblank_counter != 0 || wait_loop.vblank_polls != 1 || wait_loop.instructions != 1307648 ||
+            boot.vblank_callback != 0x80010928 || boot.vblank_counter != 0 || boot.vblank_polls != 138471)
+            return 1;
+        std::puts("PASS original VBlank callback registration and persistent wait");
         if (!boot.passed || !unshimmed.passed || bounded.stop != opengt::guest::Stop::budget || bounded.instructions != 32) return 1;
     }
     return 0;

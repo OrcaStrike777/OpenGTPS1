@@ -95,10 +95,14 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
             std::snprintf(boundary, sizeof(boundary), "BIOS %c(%02lx)%s",
                           b.pc == 0xA0 ? 'A' : b.pc == 0xB0 ? 'B' : 'C', hex(b.bios_api),
                           b.pc == 0xA0 && b.bios_api == 0x72 ? " _96_remove" : "");
+        else if (b.waiting_vblank)
+            std::snprintf(boundary, sizeof(boundary), "VBlank IRQ/callback wait");
+        else if (b.stop == guest::Stop::syscall)
+            std::snprintf(boundary, sizeof(boundary), "SYS(%02lx)", hex(b.syscall_api));
         else std::snprintf(boundary, sizeof(boundary), "%s",
                           b.stop == guest::Stop::unmapped && b.unresolved == 0x1F8010F4 ?
                           "DICR (DMA IRQ control)" : "unexpected stop");
-        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS DMA probe\n"
+        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS VBlank probe\n"
                     "START exit / X rerun / A color\n"
                     "Y: synthetic test details\n"
                     "MIPS %u/%u hash %08lx\n"
@@ -112,10 +116,10 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     "I_STAT R:%lu W:%lu\nI_MASK R:%lu W:%lu\n"
                     "IRQ pending:%03lx mask:%03lx\n"
                     "DICR R:%lu W:%lu =%08lx\n"
-                    "DMA IRQ edges:%lu completions:%lu\n"
-                    "DMA channels R:%lu W:%lu\n"
+                    "CD remove:%lu events:%02lx deq:%s\n"
+                    "SYS:%lu enter:%lu exit:%lu SR:%03lx\n"
                     "Crossed I_STAT:%s DICR:%s\n"
-                    "PAD ack %s / VBL ack %s\n"
+                    "VBL count:%lu/4 polls:%lu\n"
                     "Unresolved  %08lx\n"
                     "Boundary: %-24s\n"
                     "Trap: %-22s\n"
@@ -131,9 +135,10 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     hex(b.last_function), hex(b.functions), hex(b.instructions),
                     hex(b.stat_reads), hex(b.stat_writes), hex(b.mask_reads), hex(b.mask_writes),
                     hex(b.irq_pending), hex(b.irq_mask), hex(b.dicr_reads), hex(b.dicr_writes), hex(b.dicr_state),
-                    hex(b.dma_irq_rises), hex(b.dma_completions), hex(b.dma_channel_reads), hex(b.dma_channel_writes),
+                    hex(b.cd_remove_calls), hex(b.cd_events_open), b.cd_dequeue_unresolved ? "?" : "-",
+                    hex(b.syscall_calls), hex(b.critical_entries), hex(b.critical_exits), hex(b.sr),
                     b.crossed_istat ? "PASS" : "FAIL", b.crossed_dicr ? "PASS" : "FAIL",
-                    b.pad_auto_ack ? "ON " : "OFF", b.vblank_auto_ack ? "ON " : "OFF", hex(b.unresolved),
+                    hex(b.vblank_counter), hex(b.vblank_polls), hex(b.unresolved),
                     boundary,
                     guest::stop_name(b.stop), b.clears_verified ? "PASS" : "FAIL",
                     hex(b.dma_writes), hex(b.timer_writes));

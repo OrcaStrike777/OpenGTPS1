@@ -29,8 +29,8 @@ endif
 ifeq ($(WITH_GT2_BOOT),1)
 TARGET := opengtps1-old3ds-bootprobe
 BUILD := build-bootprobe
-export APP_TITLE := OpenGTPS1 GT2 DMA probe
-export APP_DESCRIPTION := Native DMA IRQs and GT2 startup
+export APP_TITLE := OpenGTPS1 GT2 VBlank probe
+export APP_DESCRIPTION := Native BIOS syscalls and GT2 VBlank wait
 endif
 export APP_AUTHOR := OpenGTPS1 contributors
 

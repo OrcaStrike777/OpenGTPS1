@@ -1,5 +1,6 @@
 #include "opengt/boot_probe.hpp"
 #include "opengt/startup_services.hpp"
+#include <initializer_list>
 
 namespace opengt::guest {
 namespace {
@@ -85,6 +86,72 @@ TestReport run_bios_tests() noexcept {
     c = call(0xB0, 0x5B, 1); c.stop = Stop::budget; ok &= !bios.dispatch(c);
     ok &= bios.calls == 0 && bios.pad_auto_ack == 0 && bios.timer_auto_ack[3] == 1;
     check("BIOS_bounds_reset_guard", ok);
+
+    bios = StartupBios{};
+    ok = bios.cd_events_open == 0x1F && !bios.cd_dequeue_unresolved;
+    for (u32 api : {0x72u, 0x56u}) {
+        c = call(0xA0, api, 0);
+        const Context before = c;
+        ok &= bios.dispatch(c) && (c.sr & 0x401) == 0;
+        Context normalized = c; normalized.sr = before.sr;
+        ok &= abi_preserved(before, normalized, before.read(2));
+        ok &= bios.cd_events_open == 0 && bios.cd_dequeue_unresolved;
+    }
+    ok &= bios.calls == 2 && bios.cd_remove_calls == 2 && bios.cd_close_attempts == 10 &&
+          bios.cd_dequeue_attempts == 2 && bios.critical_entries == 2 && bios.critical_exits == 0;
+    check("BIOS_CD_remove_aliases", ok);
+
+    bios = StartupBios{};
+    ok = true;
+    // Exhaust all six status-stack bits and both external IRQ mask states.
+    for (u32 bits = 0; bits < 128; ++bits) {
+        const u32 original_sr = 0xA0400200u | (bits & 63) | ((bits & 64) << 4);
+        for (u32 api = 1; api <= 2; ++api) {
+            c = call(0x80010000, 0, api); c.sr = original_sr;
+            c.bad_vaddr = 0x12345678;
+            const Context before = c;
+            c.begin(); c.fault(Stop::syscall);
+            ok &= c.stop == Stop::syscall && c.pc == before.pc && c.epc == before.pc &&
+                  c.cause == 0x120 && c.bad_vaddr == before.bad_vaddr;
+            ok &= bios.dispatch_syscall(c) && c.stop == Stop::running &&
+                  c.pc == before.pc + 4 && c.next_pc == before.pc + 8 &&
+                  c.epc == before.pc && c.cause == 0x120 && c.instructions == before.instructions + 1;
+            // Current IE and external mask change; previous KU/IE restore;
+            // oldest pair now holds the original previous pair after push/RFE.
+            const u32 stack = (original_sr & ~0x30u) | ((original_sr & 0xCu) << 2);
+            const u32 expected_sr = api == 1 ? (stack & ~0x401u) : (stack | 0x401u);
+            ok &= c.sr == expected_sr && c.hi == before.hi && c.lo == before.lo;
+            for (unsigned reg = 0; reg < 32; ++reg) {
+                const u32 expected = api == 1 && reg == 2 ? ((original_sr & 0x401) == 0x401 ? 1u : 0u) : before.read(reg);
+                ok &= c.read(reg) == expected;
+            }
+        }
+    }
+    ok &= bios.syscall_calls == 256 && bios.critical_entries == 128 && bios.critical_exits == 128;
+    check("BIOS_SYS_status_ABI", ok);
+
+    bios = StartupBios{};
+    c = call(0x80010000, 0, 1);
+    c.begin(); c.fault(Stop::syscall); ok = bios.dispatch_syscall(c) && c.read(2) == 1;
+    c.begin(); c.fault(Stop::syscall); ok &= bios.dispatch_syscall(c) && c.read(2) == 0;
+    c.write(4, 2); c.begin(); c.fault(Stop::syscall);
+    ok &= bios.dispatch_syscall(c) && (c.sr & 0x401) == 0x401 && c.read(2) == 0;
+    check("BIOS_SYS_repeated_enter", ok);
+
+    bios = StartupBios{};
+    ok = true;
+    for (u32 api : {0u, 3u, 0xFFFFFFFFu}) {
+        c = call(0x80010000, 0, api); c.begin(); c.fault(Stop::syscall);
+        const Context before = c;
+        ok &= !bios.dispatch_syscall(c) && c.stop == Stop::syscall && c.pc == before.pc &&
+              c.sr == before.sr && c.cause == before.cause && c.epc == before.epc && c.read(2) == before.read(2);
+    }
+    c = call(0x80010004, 0, 2); c.next_delay = true;
+    c.begin(); c.fault(Stop::syscall);
+    ok &= !bios.dispatch_syscall(c) && c.epc == 0x80010000 && c.cause == 0x80000120 &&
+          c.stop == Stop::syscall && bios.syscall_calls == 0;
+    c = call(0x80010000, 0, 2); ok &= !bios.dispatch_syscall(c);
+    check("BIOS_SYS_unknown_BD_guard", ok);
     return report;
 }
 } // namespace opengt::guest

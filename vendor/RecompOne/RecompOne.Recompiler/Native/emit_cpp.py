@@ -44,6 +44,10 @@ def operation(word, pc):
             42: "signed_value(s) < signed_value(t)", 43: "s < t",
         }
         if fn in expressions: return put(rd, expressions[fn]), False
+        # The 20-bit instruction code is not the PS1 BIOS selector (a0 is).
+        # Trap even in a delay slot so EPC/BD remain diagnostic; BIOS policy
+        # decides which syscalls can resume without an exception interpreter.
+        if fn == 12: return "c.fault(Stop::syscall);", False
         if fn in (32, 34): return f"checked_add(c, {rd}, s, t, {'true' if fn == 34 else 'false'});", False
         if fn in (17, 19): return f"c.{'hi' if fn == 17 else 'lo'} = s;", False
         if fn in (24, 25, 26, 27):
