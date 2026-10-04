@@ -22,7 +22,7 @@ struct BootReport {
     bool irq_active{}, entered_vblank_callback{};
     u32 sdk_vblank_counter{}, guest_in_interrupt{};
     u32 cd_writes{}, cd_reads{}, cd_bank{}, cd_status{};
-    u32 cd_flags{}, cd_flag_reads{}, cd_acks{};
+    u32 cd_flags{}, cd_flag_reads{}, cd_acks{}, cd_request_writes{};
     u32 gpu_writes{}, gpu_reads{}, gpu_status{};
     u32 puts_calls{}, printf_calls{}, console_size{};
     char console[257]{};

@@ -109,6 +109,8 @@ previous SD-card probe. Binary size: 938,496 bytes. SHA-256:
 
 Expected Old 3DS highlights: `GT2 BOOT PASS (bounded stop)`, PC 8008b80c,
 58 entries, 3397037 instructions, `CD 8/8 bank:0 R:1 W:2`, and boundary
-`CD-ROM request (bank0)`. Physical validation of this new checkpoint is pending.
+`CD-ROM request (bank0)`. Physical validation of `034720d` passed without issue
+on the user's Old 3DS; it is published on `origin/old3ds-port`. The next checkpoint
+is documented in [CD-ROM Request behavior](OLD3DS_CDROM_REQUEST.md).
 PASS confirms the exact unresolved boundary; CdInit has not finished and no CD
 commands execute. Previously reported text tearing remains diagnostic UI behavior.

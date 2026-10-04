@@ -18,6 +18,16 @@ bool CdromRegisters::read(u32 physical, unsigned width, u32& value) noexcept {
 }
 bool CdromRegisters::write(u32 physical, unsigned width, u32 value) noexcept {
     if (width != 1) return false;
+    if (physical == 0x1F801803 && bank_ == 0) {
+        // HCHPCTL=0 disables BFRD, BFWR and SMEN. This bounded controller
+        // already has no transfer or data FIFO contents, so DRQ stays clear.
+        // Nonzero requests (including reserved bits) need further hardware
+        // modeling; reject before changing state. Only the bus byte matters.
+        if (value & 0xFF) return false;
+        ++request_writes;
+        ++writes;
+        return true;
+    }
     if (physical == 0x1F801803 && bank_ == 1) {
         // HCLRCTL: low five bits are W1C, including the encoded HC05 type.
         // Decoder reset / XA buffer clear / parameter FIFO clear are outside

@@ -39,16 +39,17 @@ TestReport run_cdrom_tests() noexcept {
             const bool flags = offset == 3 && (bank & 1);
             if (flags) ok &= cd.read(port + offset, 1, value) && value == 0xE0;
             else ok &= !cd.read(port + offset, 1, value) && value == 0xDEADBEEF;
-            // Only low-five-bit HCLRCTL acknowledgements are accepted here.
+            // Only HCLRCTL acknowledgements and an idle HCHPCTL disable are accepted.
             for (u32 input = 0; input < 256; ++input) {
                 const bool ack = bank == 1 && offset == 3 && input < 32;
-                ok &= cd.write(port + offset, 1, input) == ack;
+                const bool request = bank == 0 && offset == 3 && input == 0;
+                ok &= cd.write(port + offset, 1, input) == (ack || request);
             }
         }
         ok &= cd.bank() == bank && cd.status() == (0x18u | bank);
     }
-    check("CD_banked_port_scope", ok && cd.writes == 292 && cd.reads == 259 &&
-          cd.flag_reads == 2 && cd.acknowledgements == 32 && cd.interrupt_flags == 0);
+    check("CD_banked_port_scope", ok && cd.writes == 293 && cd.reads == 259 &&
+          cd.flag_reads == 2 && cd.acknowledgements == 32 && cd.interrupt_flags == 0 && cd.request_writes == 1);
 
     // Seed only the latch, never a completed command, FIFO response or IRQ.
     ok = true;
@@ -96,8 +97,11 @@ TestReport run_cdrom_tests() noexcept {
     m.write(port, 1, 0);
     Context c; c.start(0x8008B80C);
     guest_write(c, m, port + 3, 1, 0);
-    ok &= c.stop == Stop::unmapped && c.bad_vaddr == port + 3 &&
-          c.epc == 0x8008B80C && c.cause == 0x1C && cd.bank() == 0;
+    ok &= c.stop == Stop::running && c.cause == 0 && cd.bank() == 0;
+    Context transfer; transfer.start(0x80001000);
+    guest_write(transfer, m, port + 3, 1, 0x80);
+    ok &= transfer.stop == Stop::unmapped && transfer.bad_vaddr == port + 3 &&
+          transfer.epc == 0x80001000 && transfer.cause == 0x1C;
     Context command; command.start(0x80001004); command.in_delay = true;
     m.write(port, 1, 0);
     guest_write(command, m, port + 1, 1, 1);
@@ -116,6 +120,34 @@ TestReport run_cdrom_tests() noexcept {
     irq.write(0x1F801070, 4, ~u32{4});
     ok &= m.write(port + 3, 1, 0x1F) && irq.pending() == 0 && cd.status() == 0x19;
     check("CD_ack_preserves_separate_ISTAT", ok);
+    CdromRegisters request;
+    m.attach_cdrom(&request);
+    irq.pulse(2);
+    request.interrupt_flags = 0x13;
+    ok = m.write(port + 3, 1, 0) && m.write(0x9F801803, 1, 0xFFFFFF00) &&
+         m.write(0xBF801803, 1, 0) && request.request_writes == 3;
+    ok &= request.status() == 0x18 && request.interrupt_flags == 0x13 && irq.pending() == 4;
+    ok &= request.reads == 0 && request.writes == 3 && request.acknowledgements == 0;
+    value = 0xDEADBEEF;
+    ok &= !m.read(port + 3, 1, value) && value == 0xDEADBEEF; // bank 0 reads HINTMSK, not Request
+    for (u32 input = 1; input < 256; ++input) ok &= !m.write(port + 3, 1, input);
+    for (unsigned width : {0u, 2u, 3u, 4u, 8u}) ok &= !m.write(port + 3, width, 0);
+    ok &= !m.write(0xDF801803, 1, 0) && !m.write(0x3F801803, 1, 0);
+    // Request disable must not make sectors, results or commands available.
+    ok &= !m.read(port + 1, 1, value) && !m.read(port + 2, 1, value);
+    ok &= !m.write(port + 1, 1, 1) && !m.write(port + 2, 1, 0);
+    ok &= request.request_writes == 3 && request.writes == 3 && request.reads == 0 &&
+          request.status() == 0x18 && request.interrupt_flags == 0x13 && irq.pending() == 4;
+    check("CD_request_idle_disable_no_events", ok);
+
+    ok = true;
+    for (u32 bank = 1; bank < 4; ++bank) {
+        m.write(port, 1, bank);
+        const bool ack = bank == 1;
+        ok &= m.write(port + 3, 1, 0) == ack && request.request_writes == 3;
+        ok &= request.interrupt_flags == 0x13 && request.status() == (0x18 | bank);
+    }
+    check("CD_request_bank_isolation", ok && request.acknowledgements == 1 && irq.pending() == 4);
     return report;
 }
 } // namespace opengt::guest

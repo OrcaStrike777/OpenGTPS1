@@ -3,7 +3,7 @@
 
 namespace opengt::guest {
 // Bounded idle CD controller: empty parameter/result/data FIFOs, no command
-// or ADPCM work. ADDRESS/HSTS and interrupt flag read/ack only; no IRQ producer.
+// or ADPCM work. Index/status, flag read/ack and idle Request disable only.
 class CdromRegisters {
 public:
     bool read(u32 physical, unsigned width, u32& value) noexcept;
@@ -14,6 +14,7 @@ public:
     // seed pending flags to verify selective acknowledgement (not completions).
     u32 interrupt_flags{};
     u32 flag_reads{}, acknowledgements{};
+    u32 request_writes{};
     u32 reads{}, writes{};
 private:
     u32 bank_{};

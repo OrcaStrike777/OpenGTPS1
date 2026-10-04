@@ -1,11 +1,11 @@
 # Old 3DS bootstrap
 
-Current milestone (2026-10-04): all diagnostics through `a9fe862` passed the
-user's physical Old 3DS test. The new optional boot build handles CD-ROM interrupt
-flags and stops at the bank-0 request-register write at 1F801803 after
-58 guest entries / 3,397,037 instructions. Host tests and ARM builds pass; this hardware
+Current milestone (2026-10-04): all diagnostics through `034720d` passed the
+user's physical Old 3DS test. The new optional boot build handles CD-ROM Request
+disable and stops at the COM_DELAY write at 1F801020 after
+58 guest entries / 3,397,042 instructions. Host tests and ARM builds pass; this hardware
 run is pending. Prior text tearing remains recorded as diagnostic UI behavior.
-See [CD-ROM interrupt flags and hardware expectations](../../docs/OLD3DS_CDROM_FLAGS.md)
+See [CD-ROM Request behavior and hardware expectations](../../docs/OLD3DS_CDROM_REQUEST.md)
 or [content-free/native hash tests](../../docs/OLD3DS_NATIVE_GUEST.md).
 X reruns the tests.
 The old binary sizes/hashes below record the initial platform-only build.

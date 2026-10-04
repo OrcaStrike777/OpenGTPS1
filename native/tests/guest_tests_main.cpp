@@ -69,10 +69,10 @@ int main() {
             (unsigned long)boot.dma_irq_rises, (unsigned long)boot.dma_completions,
             (unsigned long)boot.dma_channel_reads, (unsigned long)boot.dma_channel_writes,
             (unsigned long)boot.irq_pending, (unsigned long)boot.irq_mask);
-        std::printf("CD bank=%lu status=%02lx R=%lu W=%lu flags=%02lx flagR=%lu ackW=%lu\n",
+        std::printf("CD bank=%lu status=%02lx R=%lu W=%lu flags=%02lx flagR=%lu ackW=%lu requestW=%lu\n",
             (unsigned long)boot.cd_bank, (unsigned long)boot.cd_status, (unsigned long)boot.cd_reads,
             (unsigned long)boot.cd_writes, (unsigned long)boot.cd_flags,
-            (unsigned long)boot.cd_flag_reads, (unsigned long)boot.cd_acks);
+            (unsigned long)boot.cd_flag_reads, (unsigned long)boot.cd_acks, (unsigned long)boot.cd_request_writes);
         for (unsigned i=0;i<boot.trace_count;++i) std::printf(" %08lx",(unsigned long)boot.trace[i]);
         std::puts("");
         std::printf("CD remove=%lu events=%02lx close=%lu dequeue=%lu unresolved=%d; SYS calls=%lu enter=%lu exit=%lu SR=%08lx Cause=%08lx EPC=%08lx\n",
@@ -183,7 +183,7 @@ int main() {
             first_return.gpu_writes != 1 || first_return.sr != 0x401) return 1;
         if (boot.irq_returns != 4 || boot.irq_active || boot.vblank_counter != 4 ||
             boot.vblank_callback != 0 || boot.gpu_writes != 4 || boot.gpu_reads != 0 ||
-            boot.gpu_status != 0x14802000 || boot.pc != 0x8008B80C || boot.unresolved != 0x1F801803 ||
+            boot.gpu_status != 0x14802000 || boot.pc != 0x8008B820 || boot.unresolved != 0x1F801020 ||
             boot.puts_calls != 1 || boot.printf_calls != 1 || boot.console_size != 23) return 1;
         const auto puts_before = opengt::guest::run_boot_probe(true, 3396902);
         const auto puts_after = opengt::guest::run_boot_probe(true, 3396903);
@@ -209,24 +209,36 @@ int main() {
             cd_after.cd_status != 0x19 || cd_after.cd_reads != 0 || cd_after.cause != 0 ||
             cd_read_before.stop != opengt::guest::Stop::budget || cd_read_before.pc != 0x8008B764 ||
             cd_read_before.instructions != 3397015 || cd_read_before.cause != 0 || cd_read_before.cd_reads != 0 ||
-            boot.cd_writes != 2 || boot.cd_reads != 1 || boot.cd_bank != 0 || boot.cd_status != 0x18 ||
+            boot.cd_writes != 3 || boot.cd_request_writes != 1 || boot.cd_reads != 1 || boot.cd_bank != 0 || boot.cd_status != 0x18 ||
             boot.cd_flags != 0 || boot.cd_flag_reads != 1 || boot.cd_acks != 0) return 1;
         const auto flags_after = opengt::guest::run_boot_probe(true, 3397031);
         const auto flags_branch = opengt::guest::run_boot_probe(true, 3397035);
         const auto request_before = opengt::guest::run_boot_probe(true, 3397051);
+        const auto request_after = opengt::guest::run_boot_probe(true, 3397052);
+        const auto jal_before = opengt::guest::run_boot_probe(true, 3397055);
+        const auto delay_before = opengt::guest::run_boot_probe(true, 3397056);
         if (flags_after.stop != opengt::guest::Stop::budget || flags_after.pc != 0x8008B768 ||
             flags_after.instructions != 3397016 || flags_after.cd_flag_reads != 1 ||
             flags_after.cd_flags != 0 || flags_after.cd_bank != 1 || flags_after.cause != 0 ||
             flags_branch.stop != opengt::guest::Stop::budget || flags_branch.pc != 0x8008B7CC ||
             flags_branch.instructions != 3397020 || flags_branch.cd_acks != 0 || flags_branch.cause != 0 ||
-            request_before.stop != opengt::guest::Stop::budget || request_before.pc != boot.pc ||
-            request_before.instructions + 1 != boot.instructions || request_before.cd_bank != 0 ||
+            request_before.stop != opengt::guest::Stop::budget || request_before.pc != 0x8008B80C ||
+            request_before.instructions + 1 != request_after.instructions || request_before.cd_bank != 0 ||
             request_before.cd_writes != 2 || request_before.cd_reads != 1 || request_before.cause != 0) return 1;
         if (cd_before.stop != opengt::guest::Stop::budget || cd_before.pc != 0x8008B754 ||
             cd_before.instructions + 1 != cd_after.instructions || cd_before.cd_writes != 0 || cd_before.cd_bank != 0 || cd_before.irq_mask != 13 ||
             cd_before.mask_writes != 7 || cd_before.cause != 0 ||
-            boot.stop != opengt::guest::Stop::unmapped || boot.cause != 0x1C || boot.epc != boot.pc) return 1;
-        std::puts("PASS printf / CD index / IRQ flags read / guest branch / request write checkpoints");
+            boot.stop != opengt::guest::Stop::unmapped || boot.cause != 0x8000001C || boot.epc != 0x8008B81C) return 1;
+        if (request_before.cd_request_writes != 0 || request_after.stop != opengt::guest::Stop::budget ||
+            request_after.pc != 0x8008B810 || request_after.instructions != 3397037 ||
+            request_after.cd_request_writes != 1 || request_after.cd_writes != 3 ||
+            request_after.cd_bank != 0 || request_after.cd_status != 0x18 || request_after.cd_flags != 0 ||
+            request_after.cause != 0 || jal_before.stop != opengt::guest::Stop::budget ||
+            jal_before.pc != 0x8008B81C || jal_before.instructions != 3397040 || jal_before.cause != 0 ||
+            delay_before.stop != opengt::guest::Stop::budget || delay_before.pc != boot.pc ||
+            delay_before.instructions + 1 != boot.instructions || delay_before.cause != 0 ||
+            delay_before.ra != 0x8008B824 || boot.ra != delay_before.ra) return 1;
+        std::puts("PASS printf / CD index / IRQ flags / Request disable / COM_DELAY delay-slot checkpoints");
         std::puts("PASS puts entry / captured output / guest return checkpoints");
         std::puts("PASS four guest callbacks / BIOS returns / CdInit CD-ROM boundary");
         std::puts("PASS IRQ hook / guest ack / callback / GPU delay-slot continuation checkpoints");
