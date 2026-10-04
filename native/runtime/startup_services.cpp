@@ -8,11 +8,11 @@ u32 return_status(u32 saved) noexcept {
 }
 }
 bool StartupBios::dispatch_console(Context& c, const Memory& m) noexcept {
+    const bool formatted = c.pc == 0xA0 && c.read(9) == 0x3F;
     if (c.stop != Stop::running || c.next_delay || c.pending_register ||
-        !((c.pc == 0xA0 && c.read(9) == 0x3E) || (c.pc == 0xB0 && c.read(9) == 0x3F)))
+        !(formatted || (c.pc == 0xA0 && c.read(9) == 0x3E) || (c.pc == 0xB0 && c.read(9) == 0x3F)))
         return false;
-    // Stage one complete call so an unreadable/unterminated string or full
-    // transcript cannot partially emit output and then be replayed on retry.
+    // Stage one complete call: failures cannot partially emit/replay output.
     char staged[console_capacity]{};
     u32 size = 0, column = console_column;
     const auto emit = [&](char ch) {
@@ -20,21 +20,7 @@ bool StartupBios::dispatch_console(Context& c, const Memory& m) noexcept {
         staged[size++] = ch;
         return true;
     };
-    const u32 address = c.read(4);
-    bool terminated = false;
-    for (u32 offset = 0; offset <= console_capacity; ++offset) {
-        u32 ch = 0;
-        if (!address) {
-            constexpr char null_text[] = "<NULL>";
-            ch = static_cast<unsigned char>(null_text[offset]);
-        } else {
-            if (address > ~u32{0} - offset) return false;
-            const u32 current = address + offset, physical = current & 0x1FFFFFFF;
-            // Console strings use mapped RAM/scratch, never side-effecting MMIO.
-            if (!(physical < 0x800000 || (physical >= 0x1F800000 && physical < 0x1F800400)) ||
-                !m.read(current, 1, ch)) return false;
-        }
-        if (!ch) { terminated = true; break; }
+    const auto put = [&](u32 ch) {
         if (ch == '\t') {
             const u32 spaces = 8 - (column & 7);
             for (u32 n = 0; n < spaces; ++n) if (!emit(' ')) return false;
@@ -48,13 +34,72 @@ bool StartupBios::dispatch_console(Context& c, const Memory& m) noexcept {
             else if (ch == '\b') { if (column) --column; }
             else if (ch >= 0x20 && ch != 0x7F) ++column;
         }
+        return true;
+    };
+    const auto read = [&](u32 address, unsigned width, u32& value) {
+        const u32 physical = address & 0x1FFFFFFF;
+        // Format/argument reads must not touch side-effecting MMIO.
+        return (physical <= 0x800000 - width ||
+                (physical >= 0x1F800000 && physical <= 0x1F800400 - width)) &&
+               m.read(address, width, value);
+    };
+    const u32 address = c.read(4);
+    if (formatted && !address) return false; // printf null format is unmodeled.
+    u32 offset = 0, argument = 0;
+    const auto next = [&](u32& ch) {
+        if (offset > console_capacity || address > ~u32{0} - offset) return false;
+        if (!address) {
+            constexpr char null_text[] = "<NULL>";
+            ch = static_cast<unsigned char>(null_text[offset++]);
+            return true;
+        }
+        return read(address + offset++, 1, ch);
+    };
+    for (;;) {
+        u32 ch = 0;
+        if (!next(ch)) return false;
+        if (!ch) break;
+        if (!formatted || ch != '%') {
+            if (!put(ch)) return false;
+            continue;
+        }
+        if (!next(ch)) return false;
+        if (ch == '%') { if (!put('%')) return false; continue; }
+        const bool zero_pad = ch == '0';
+        if (zero_pad && !next(ch)) return false;
+        u32 width = 0;
+        while (ch >= '0' && ch <= '9') {
+            width = width * 10 + ch - '0';
+            if (width > console_capacity || !next(ch)) return false;
+        }
+        // Deliberately bounded printf subset: hexadecimal with field width.
+        // Other conversions/flags/precision/lengths stop without side effects.
+        if (ch != 'x' && ch != 'X') return false;
+        u32 value = 0;
+        if (argument < 3) value = c.read(5 + argument);
+        else {
+            const u32 stack_offset = 16 + (argument - 3) * 4;
+            if (c.read(29) > ~u32{0} - stack_offset ||
+                !read(c.read(29) + stack_offset, 4, value)) return false;
+        }
+        ++argument;
+        char digits[8];
+        unsigned count = 0;
+        do {
+            const u32 digit = value & 15;
+            digits[count++] = static_cast<char>(digit < 10 ? '0' + digit :
+                                               (ch == 'x' ? 'a' : 'A') + digit - 10);
+            value >>= 4;
+        } while (value);
+        for (u32 n = count; n < width; ++n) if (!put(zero_pad ? '0' : ' ')) return false;
+        while (count) if (!put(digits[--count])) return false;
     }
-    if (!terminated) return false;
     for (u32 i = 0; i < size; ++i) console[console_size + i] = staged[i];
     console_size += size; console[console_size] = 0; console_column = column;
-    ++puts_calls; ++calls;
-    // BIOS puts has no specified result register. Do not invent a success
-    // value or append the newline that the host C library's puts would add.
+    if (formatted) ++printf_calls; else ++puts_calls;
+    ++calls;
+    // These BIOS console APIs specify no result register. Preserve it rather
+    // than imposing host libc's count. Return only after retaining all output.
     c.start(c.read(31)); c.in_delay = false;
     return true;
 }

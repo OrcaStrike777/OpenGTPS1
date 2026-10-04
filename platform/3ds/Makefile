@@ -30,7 +30,7 @@ ifeq ($(WITH_GT2_BOOT),1)
 TARGET := opengtps1-old3ds-bootprobe
 BUILD := build-bootprobe
 export APP_TITLE := OpenGTPS1 GT2 BIOS probe
-export APP_DESCRIPTION := Native BIOS puts and original GT2 CdInit
+export APP_DESCRIPTION := Native BIOS printf and original GT2 CdInit
 endif
 export APP_AUTHOR := OpenGTPS1 contributors
 

@@ -2,7 +2,7 @@
 """Build a bounded sparse startup graph from the validated original EXE.
 
 No instructions are replaced. Explicit audited ranges reach the original
-VBlank callbacks and CdInit's BIOS printf; other calls stop as unknown targets.
+VBlank callbacks and CdInit's first CD-ROM index write; other calls stop as unknown targets.
 """
 import hashlib
 import json
@@ -27,7 +27,7 @@ RANGES = [(0x8005D600,0x8005D698), (0x8008CE08,0x8008CE30),
           (0x80010928,0x80010954), (0x8007F830,0x8007F848),
           (0x8008CCA8,0x8008CCB4),
           (0x80089F38,0x80089F50), (0x80089FC8,0x80089FD8),
-          (0x8008B6D8,0x8008B704), (0x8008E00C,0x8008E018),
+          (0x8008B6D8,0x8008B758), (0x8008E00C,0x8008E018),
           (0x8008DFF4,0x8008E000)]
 
 def generate(exe, system_cnf):
@@ -94,7 +94,7 @@ def generate(exe, system_cnf):
                 out += ['report.gpu_control_value=t;']
             out += ['if(c.stop==Stop::running){report.last_pc=c.pc;c.pc=next;} break; }']
     out += ['default:c.stop=(c.pc==0xA0||c.pc==0xB0||c.pc==0xC0)?Stop::bios:Stop::unknown_pc;break;', '}', '}',
-            'report.puts_calls=bios.puts_calls;report.console_size=bios.console_size;',
+            'report.puts_calls=bios.puts_calls;report.printf_calls=bios.printf_calls;report.console_size=bios.console_size;',
             'static_assert(sizeof(report.console)==sizeof(bios.console));',
             'for(unsigned i=0;i<sizeof(report.console);++i) report.console[i]=bios.console[i];',
             'report.gpu_writes=gpu.writes;report.gpu_reads=gpu.reads;report.gpu_status=gpu.status();',
@@ -114,28 +114,29 @@ def generate(exe, system_cnf):
             'report.waiting_vblank=vblank&&c.stop==Stop::budget&&c.pc>=0x8001096C&&c.pc<=0x8001097C&&report.vblank_callback==0x80010928&&report.vblank_counter<4;',
             'for(u32 a=0x800A8D5C;a<0x801F0D60;a+=4) if(!m.read(a,4,value)||value) report.clears_verified=false;',
             'const bool heap=m.read(0x800A8D50,4,value)&&value==0x801F0D60;',
+            'const char expected_console[]="CD_init:addr=800a7aec\\r\\n";',
+            'bool console_ok=bios.console_size==sizeof(expected_console)-1;for(unsigned i=0;i<sizeof(expected_console);++i) console_ok=console_ok&&bios.console[i]==expected_console[i];',
             'report.passed=report.clears_verified&&heap&&',
             '(devices?(report.crossed_istat&&report.crossed_dicr&&vblank&&handler&&',
             'dicr.reads==0&&dicr.writes==1&&dicr.state()==0&&dicr.completions==0&&dicr.irq_rises==0&&',
             'dicr.channel_reads==0&&dicr.channel_writes==0&&io.pending()==0&&',
-            'io.mask_writes==5&&io.mask()==9&&',
+            'io.mask_writes==(schedule_vblank?7u:5u)&&io.mask()==(schedule_vblank?13u:9u)&&',
             'dma.writes==1&&dma.value==0x33333333&&timers.writes==1&&timers.mode[1]==0x100&&',
-            'bios.calls==(schedule_vblank?9u:4u)&&bios.hook_buffer==0x800A7BB4&&bios.pad_calls==1&&bios.pad_auto_ack==0&&',
+            'bios.calls==(schedule_vblank?10u:4u)&&bios.hook_buffer==0x800A7BB4&&bios.pad_calls==1&&bios.pad_auto_ack==0&&',
             'bios.cd_remove_calls==1&&bios.cd_events_open==0&&bios.cd_close_attempts==5&&bios.cd_dequeue_attempts==1&&bios.cd_dequeue_unresolved&&',
             'bios.syscall_calls==1&&bios.critical_entries==1&&bios.critical_exits==1&&',
             'bios.rcnt_calls==1&&bios.timer_auto_ack[3]==0&&',
             '(schedule_vblank?(',
-            'c.stop==Stop::bios&&c.pc==0xA0&&c.read(9)==0x3F&&c.read(4)==0x80090EA0&&c.read(5)==0x800A7AEC&&c.read(31)==0x8008B704&&',
-            'report.functions==54&&report.instructions==3396897&&report.last_pc==0x8008DFFC&&',
-            'video.edges==6&&video.phase==504&&bios.irq_entries==4&&bios.irq_returns==4&&!bios.irq_active&&',
+            'c.stop==Stop::unmapped&&c.pc==0x8008B754&&c.bad_vaddr==0x1F801800&&c.read(2)==1&&',
+            'report.functions==58&&report.instructions==3397012&&report.last_pc==0x8008B750&&',
+            'video.edges==6&&video.phase==734&&bios.irq_entries==4&&bios.irq_returns==4&&!bios.irq_active&&',
             'bios.irq_resume_pc==0x80010974&&bios.irq_hook_pc==0x8008BE74&&',
             'report.entered_vblank_callback&&report.sdk_vblank_counter==4&&report.guest_in_interrupt==0&&',
             'report.vblank_counter==4&&report.vblank_callback==0&&gpu.writes==4&&gpu.reads==0&&gpu.status()==0x14802000&&',
-            'report.vblank_polls==417691&&io.stat_reads==12&&io.stat_writes==5&&io.mask_reads==15&&',
-            'bios.puts_calls==1&&bios.console_size==8&&',
-            'bios.console[0]==67&&bios.console[1]==68&&bios.console[2]==95&&bios.console[3]==105&&',
-            'bios.console[4]==110&&bios.console[5]==105&&bios.console[6]==116&&bios.console[7]==58&&bios.console[8]==0&&',
-            'c.sr==0x401&&c.cause==0&&c.epc==0x80010974):(',
+            'report.vblank_polls==417691&&io.stat_reads==12&&io.stat_writes==5&&io.mask_reads==16&&',
+            'bios.puts_calls==1&&bios.printf_calls==1&&console_ok&&',
+            'm.read(0x800A7B88,4,value)&&value==0x8008BA2C&&',
+            'c.sr==0x401&&c.cause==0x1C&&c.epc==0x8008B754):(',
             'report.vblank_counter==0&&report.vblank_callback==0x80010928&&gpu.writes==0&&',
             'report.waiting_vblank&&c.pc==0x80010974&&report.functions==27&&report.instructions==1999995&&report.last_pc==0x80010970&&',
             'report.vblank_polls==138471&&io.stat_reads==0&&io.stat_writes==1&&io.mask_reads==3&&',

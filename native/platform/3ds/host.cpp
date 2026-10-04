@@ -100,6 +100,8 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
             std::snprintf(boundary, sizeof(boundary), "BIOS %c(%02lx)%s",
                           b.pc == 0xA0 ? 'A' : b.pc == 0xB0 ? 'B' : 'C', hex(b.bios_api),
                           b.bios_api == 0x3F ? (b.pc == 0xA0 ? " printf" : " puts") : "");
+        else if (b.stop == guest::Stop::unmapped && b.unresolved == 0x1F801800)
+            std::snprintf(boundary, sizeof(boundary), "CD-ROM index select");
         else if (b.waiting_vblank)
             std::snprintf(boundary, sizeof(boundary), "VBlank IRQ/callback wait");
         else if (b.stop == guest::Stop::syscall)
@@ -131,7 +133,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     "Boundary: %-24s\n"
                     "Trap: %-22s\n"
                     "BSS %s / DPCR W:%lu / Timer W:%lu\n"
-                    "TTY [%s] puts:%lu bytes:%lu\n",
+                    "TTY %.23s P:%lu F:%lu\n",
                     d.guest_tests->passed, d.guest_tests->count, hex(d.guest_tests->signature),
                     d.gt2_probe->passed, d.gt2_probe->count, hex(d.gt2_probe->signature),
                     d.boot_operations->passed, d.boot_operations->count,
@@ -149,7 +151,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     hex(b.vblank_counter), hex(b.sdk_vblank_counter), hex(b.unresolved),
                     boundary,
                     guest::stop_name(b.stop), b.clears_verified ? "PASS" : "FAIL",
-                    hex(b.dma_writes), hex(b.timer_writes), tty_preview, hex(b.puts_calls), hex(b.console_size));
+                    hex(b.dma_writes), hex(b.timer_writes), tty_preview, hex(b.puts_calls), hex(b.printf_calls));
         const unsigned first = b.trace_count > 2 ? b.trace_count - 2 : 0;
         for (unsigned i = first; i < b.trace_count; ++i)
             std::printf(" %2u: %08lx\n", i + 1, hex(b.trace[i]));

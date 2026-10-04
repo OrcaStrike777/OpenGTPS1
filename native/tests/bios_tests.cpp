@@ -192,7 +192,7 @@ TestReport run_bios_tests() noexcept {
         ok &= !bios.dispatch_console(c, m) && c.pc == before.pc && c.read(2) == before.read(2) &&
               c.instructions == before.instructions && c.stop == Stop::running;
     }
-    c = call(0xA0, 0x3F, 0x100); ok &= !bios.dispatch_console(c, m); // printf remains unresolved.
+    c = call(0xA0, 0x3F, 0x100); ok &= !bios.dispatch_console(c, m); // Unsupported format remains unresolved.
     c = call(0xB0, 0x3F, 0x100); c.next_delay = true; ok &= !bios.dispatch_console(c, m);
     c = call(0xB0, 0x3F, 0x100); c.load(4, 0); ok &= !bios.dispatch_console(c, m);
     c = call(0xB0, 0x3F, 0x100); c.stop = Stop::budget; ok &= !bios.dispatch_console(c, m);
@@ -214,6 +214,75 @@ TestReport run_bios_tests() noexcept {
     c = call(0xB0, 0x3F, 0x400);
     ok &= !bios.dispatch_console(c, m) && bios.console_size == 0 && bios.calls == 0;
     check("BIOS_puts_capacity_no_truncation", ok);
+
+    m = reset_test_memory();
+    const auto format = [&](const char* text) {
+        for (u32 i = 0;; ++i) {
+            m.write(0x800 + i, 1, static_cast<unsigned char>(text[i]));
+            if (!text[i]) break;
+        }
+    };
+    bios = StartupBios{};
+    format("addr=%08x\n");
+    c = call(0xA0, 0x3F, 0x80000800, 0x1234AB);
+    const Context printf_before = c;
+    ok = bios.dispatch_console(c, m) && abi_preserved(printf_before, c, printf_before.read(2)) &&
+         std::strcmp(bios.console, "addr=001234ab\r\n") == 0 && bios.console_size == 15 &&
+         bios.printf_calls == 1 && bios.puts_calls == 0 && bios.calls == 1;
+    format("%% [%4x][%02X][%08x]");
+    c = call(0xA0, 0x3F, 0xA0000800, 0); c.write(6, 0xABCD); c.write(7, 0xFFFFFFFF);
+    ok &= bios.dispatch_console(c, m) &&
+          std::strcmp(bios.console, "addr=001234ab\r\n% [   0][ABCD][ffffffff]") == 0;
+    check("BIOS_printf_hex_width_ABI", ok);
+
+    bios = StartupBios{};
+    format("%x %x %x %08X %x");
+    c = call(0xA0, 0x3F, 0x800, 1); c.write(6, 0x80000000); c.write(7, 0xFFFFFFFF);
+    c.write(29, 0xA0001000); m.write(0x1010, 4, 0xABC); m.write(0x1014, 4, 0x12345678);
+    ok = bios.dispatch_console(c, m) &&
+         std::strcmp(bios.console, "1 80000000 ffffffff 00000ABC 12345678") == 0;
+    for (u32 stack : {0xFFFFFFF0u, 0x1F801804u, 0x80001001u, 0xDF800000u}) {
+        c = call(0xA0, 0x3F, 0x800); c.write(29, stack);
+        ok &= !bios.dispatch_console(c, m) && c.pc == 0xA0 && bios.printf_calls == 1;
+    }
+    u32 word = 0;
+    ok &= m.read(0x1010, 4, word) && word == 0xABC &&
+          std::strcmp(bios.console, "1 80000000 ffffffff 00000ABC 12345678") == 0;
+    check("BIOS_printf_register_stack_args", ok);
+
+    bios = StartupBios{};
+    format("kept"); c = call(0xA0, 0x3F, 0x800); bios.dispatch_console(c, m);
+    ok = true;
+    for (const char* bad : {"%s", "%n", "%d", "%#x", "%-8x", "%.*x", "%lx", "ok %x then %d", "%", "%999999999999x"}) {
+        format(bad); c = call(0xA0, 0x3F, 0x800, 0x123);
+        const Context before = c;
+        ok &= !bios.dispatch_console(c, m) && c.pc == before.pc && c.next_pc == before.next_pc &&
+              c.sr == before.sr && c.instructions == before.instructions;
+        for (unsigned reg = 0; reg < 32; ++reg) ok &= c.read(reg) == before.read(reg);
+    }
+    for (u32 address : {0u, 0x1F801814u, 0xDF800000u, 0xFFFFFFFFu}) {
+        c = call(0xA0, 0x3F, address); ok &= !bios.dispatch_console(c, m);
+    }
+    format("%x");
+    c = call(0xA0, 0x3F, 0x800); c.load(5, 42); ok &= !bios.dispatch_console(c, m);
+    c = call(0xA0, 0x3F, 0x800); c.next_delay = true; ok &= !bios.dispatch_console(c, m);
+    c = call(0xA0, 0x3F, 0x800); c.stop = Stop::budget; ok &= !bios.dispatch_console(c, m);
+    ok &= bios.printf_calls == 1 && bios.calls == 1 && bios.console_column == 4 &&
+          std::strcmp(bios.console, "kept") == 0;
+    check("BIOS_printf_rejection_atomic", ok);
+
+    bios = StartupBios{};
+    format("%0256x"); c = call(0xA0, 0x3F, 0x800, 0xA);
+    ok = bios.dispatch_console(c, m) && bios.console_size == 256 && bios.console[255] == 'a';
+    for (u32 i = 0; i < 255; ++i) ok &= bios.console[i] == '0';
+    format("x"); c = call(0xA0, 0x3F, 0x800);
+    ok &= !bios.dispatch_console(c, m) && bios.printf_calls == 1;
+    bios = StartupBios{};
+    format("%0255x\n"); c = call(0xA0, 0x3F, 0x800, 1);
+    ok &= !bios.dispatch_console(c, m) && bios.console_size == 0 && bios.printf_calls == 0;
+    format("%0257x"); c = call(0xA0, 0x3F, 0x800, 1);
+    ok &= !bios.dispatch_console(c, m) && bios.console_size == 0 && bios.calls == 0;
+    check("BIOS_printf_capacity_no_truncation", ok);
     return report;
 }
 } // namespace opengt::guest

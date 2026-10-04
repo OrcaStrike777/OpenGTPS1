@@ -1,5 +1,9 @@
 # Native BIOS puts and the next CdInit console call
 
+The user has validated `008b3a3` on physical Old 3DS with all diagnostics
+passing. See [BIOS printf and the CD-ROM index boundary](OLD3DS_BIOS_PRINTF.md)
+for the next checkpoint.
+
 This continues `429a755` on `old3ds-port`. The user validated that commit on
 physical Old 3DS: all diagnostics passed, reaching 53 entries / 3,396,889
 instructions at BIOS B(3Fh). Its push to `origin/old3ds-port` is confirmed.
