@@ -100,8 +100,8 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
             std::snprintf(boundary, sizeof(boundary), "BIOS %c(%02lx)%s",
                           b.pc == 0xA0 ? 'A' : b.pc == 0xB0 ? 'B' : 'C', hex(b.bios_api),
                           b.bios_api == 0x3F ? (b.pc == 0xA0 ? " printf" : " puts") : "");
-        else if (b.stop == guest::Stop::unmapped && b.unresolved == 0x1F801803 && b.cd_bank == 1)
-            std::snprintf(boundary, sizeof(boundary), "CD-ROM IRQ flags (bank1)");
+        else if (b.stop == guest::Stop::unmapped && b.unresolved == 0x1F801803 && b.cd_bank == 0)
+            std::snprintf(boundary, sizeof(boundary), "CD-ROM request (bank0)");
         else if (b.waiting_vblank)
             std::snprintf(boundary, sizeof(boundary), "VBlank IRQ/callback wait");
         else if (b.stop == guest::Stop::syscall)

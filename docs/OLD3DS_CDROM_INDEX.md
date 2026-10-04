@@ -91,6 +91,8 @@ previous SD-card probe. Binary size: 933,404 bytes. SHA-256:
 
 Expected highlights: `GT2 BOOT PASS (bounded stop)`, PC 8008b764, 58 entries,
 3397016 instructions, `CD 5/5 bank:1 R:0 W:1`, and boundary
-`CD-ROM IRQ flags (bank1)`. Physical validation of this new checkpoint is pending.
+`CD-ROM IRQ flags (bank1)`. Physical validation of `a9fe862` passed without issue
+on the user's Old 3DS; it is published on `origin/old3ds-port`. The next checkpoint
+is documented in [CD-ROM interrupt flags](OLD3DS_CDROM_FLAGS.md).
 PASS confirms the exact unresolved boundary; CdInit has not finished and CD
 commands remain unsupported. Prior transient text tearing remains diagnostic UI behavior.
