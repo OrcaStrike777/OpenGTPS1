@@ -1,5 +1,9 @@
 # Native GP1 display control and the CdInit BIOS boundary
 
+The user has since validated `429a755` on physical Old 3DS with all diagnostics
+passing. See [BIOS puts and the next CdInit call](OLD3DS_BIOS_PUTS.md) for the
+new checkpoint and the reported diagnostic UI text tearing.
+
 This continues validated commit `28eb1e4` on `old3ds-port`. The user reports
 that all diagnostics at that checkpoint pass on physical Old 3DS. This new
 checkpoint has passed host tests and Old 3DS build validation; its physical

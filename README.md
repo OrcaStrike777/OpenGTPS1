@@ -7,9 +7,9 @@ port. See the [port plan](docs/OLD3DS_PORT_PLAN.md) and
 [native dependency boundaries](docs/OLD3DS_DEPENDENCIES.md). The documentation
 below describes the upstream Windows release.
 
-The original bootstrap and native startup through `28eb1e4` passed Old 3DS
-hardware tests. The current build implements [GP1 display control](docs/OLD3DS_GPU_CONTROL.md),
-executes all four original VBlank callbacks, and reaches CdInit's BIOS puts call.
+The original bootstrap and native startup through `429a755` passed Old 3DS
+hardware tests. The current build handles [BIOS puts](docs/OLD3DS_BIOS_PUTS.md),
+preserves the original CdInit console output, and stops at BIOS A(3Fh) printf.
 Host tests and ARM11 builds pass; this new hardware checkpoint is pending.
 
 OpenGTPS1 0.9b is an experimental static-recompilation port of the US

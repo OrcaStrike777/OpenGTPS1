@@ -22,6 +22,8 @@ struct BootReport {
     bool irq_active{}, entered_vblank_callback{};
     u32 sdk_vblank_counter{}, guest_in_interrupt{};
     u32 gpu_writes{}, gpu_reads{}, gpu_status{};
+    u32 puts_calls{}, console_size{};
+    char console[257]{};
     Stop stop{Stop::running};
     u32 trace[64]{}; unsigned trace_count{};
 };

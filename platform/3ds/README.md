@@ -1,10 +1,11 @@
 # Old 3DS bootstrap
 
-Current milestone (2026-10-03): all diagnostics through `28eb1e4` passed the
-user's physical Old 3DS test. The new optional boot build implements GP1 display
-control, completes all four original VBlank callbacks, and stops at CdInit's
-BIOS B(3Fh) puts call. Host tests and ARM builds pass; this hardware run is pending.
-See [GPU progress and current hardware expectations](../../docs/OLD3DS_GPU_CONTROL.md)
+Current milestone (2026-10-03): all diagnostics through `429a755` passed the
+user's physical Old 3DS test. The new optional boot build handles BIOS puts,
+captures `CD_init:`, and stops at BIOS A(3Fh) printf after 54 guest entries.
+Host tests and ARM builds pass; this hardware run is pending. Reported native
+text tearing is recorded as diagnostic UI behavior without guest-state failure.
+See [BIOS puts progress and current hardware expectations](../../docs/OLD3DS_BIOS_PUTS.md)
 or [content-free/native hash tests](../../docs/OLD3DS_NATIVE_GUEST.md).
 X reruns the tests.
 The old binary sizes/hashes below record the initial platform-only build.

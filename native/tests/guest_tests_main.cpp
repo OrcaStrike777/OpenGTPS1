@@ -71,6 +71,10 @@ int main() {
             (unsigned long)boot.cd_close_attempts, (unsigned long)boot.cd_dequeue_attempts, boot.cd_dequeue_unresolved,
             (unsigned long)boot.syscall_calls, (unsigned long)boot.critical_entries, (unsigned long)boot.critical_exits,
             (unsigned long)boot.sr, (unsigned long)boot.cause, (unsigned long)boot.epc);
+        std::printf("TTY puts=%lu bytes=%lu hex=", (unsigned long)boot.puts_calls, (unsigned long)boot.console_size);
+        for (unsigned i=0;i<boot.console_size;++i)
+            std::printf("%02x", static_cast<unsigned>(static_cast<unsigned char>(boot.console[i])));
+        std::puts("");
         std::printf("VBlank wait=%d callback=%08lx counter=%lu polls=%lu\n",boot.waiting_vblank,
             (unsigned long)boot.vblank_callback,(unsigned long)boot.vblank_counter,(unsigned long)boot.vblank_polls);
         std::printf("VBlank edges=%lu phase=%lu IRQ entries=%lu returns=%lu deferred=%lu active=%d resume=%08lx hookPC=%08lx callback=%d SDK=%lu busy=%lu GPU=%08lx\n",
@@ -170,8 +174,17 @@ int main() {
             first_return.gpu_writes != 1 || first_return.sr != 0x401) return 1;
         if (boot.irq_returns != 4 || boot.irq_active || boot.vblank_counter != 4 ||
             boot.vblank_callback != 0 || boot.gpu_writes != 4 || boot.gpu_reads != 0 ||
-            boot.gpu_status != 0x14802000 || boot.pc != 0xB0 || boot.bios_api != 0x3F) return 1;
-        std::puts("PASS four guest callbacks / BIOS returns / CdInit puts boundary");
+            boot.gpu_status != 0x14802000 || boot.pc != 0xA0 || boot.bios_api != 0x3F || boot.puts_calls != 1 || boot.console_size != 8) return 1;
+        const auto puts_before = opengt::guest::run_boot_probe(true, 3396902);
+        const auto puts_after = opengt::guest::run_boot_probe(true, 3396903);
+        if (puts_before.stop != opengt::guest::Stop::budget || puts_before.pc != 0xB0 ||
+            puts_before.instructions != 3396889 || puts_before.puts_calls || puts_before.console_size ||
+            puts_after.stop != opengt::guest::Stop::budget || puts_after.pc != 0x8008B6F0 ||
+            puts_after.instructions != puts_before.instructions || puts_after.puts_calls != 1 ||
+            puts_after.console_size != 8 || puts_after.bios_calls != puts_before.bios_calls + 1 ||
+            puts_after.vblank_phase != puts_before.vblank_phase) return 1;
+        std::puts("PASS puts entry / captured output / guest return checkpoints");
+        std::puts("PASS four guest callbacks / BIOS returns / CdInit printf boundary");
         std::puts("PASS IRQ hook / guest ack / callback / GPU delay-slot continuation checkpoints");
         if (!boot.passed || !unshimmed.passed || bounded.stop != opengt::guest::Stop::budget || bounded.instructions != 32) return 1;
     }

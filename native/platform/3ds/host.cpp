@@ -91,10 +91,15 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
         const auto& b = *d.boot;
         const auto hex = [](std::uint32_t v) { return static_cast<unsigned long>(v); };
         char boundary[32]{};
+        char tty_preview[25]{};
+        for (unsigned i = 0; i < b.console_size && i + 1 < sizeof(tty_preview); ++i) {
+            const auto ch = static_cast<unsigned char>(b.console[i]);
+            tty_preview[i] = ch >= 0x20 && ch <= 0x7E ? static_cast<char>(ch) : '.';
+        }
         if (b.stop == guest::Stop::bios)
             std::snprintf(boundary, sizeof(boundary), "BIOS %c(%02lx)%s",
                           b.pc == 0xA0 ? 'A' : b.pc == 0xB0 ? 'B' : 'C', hex(b.bios_api),
-                          b.pc == 0xB0 && b.bios_api == 0x3F ? " puts" : "");
+                          b.bios_api == 0x3F ? (b.pc == 0xA0 ? " printf" : " puts") : "");
         else if (b.waiting_vblank)
             std::snprintf(boundary, sizeof(boundary), "VBlank IRQ/callback wait");
         else if (b.stop == guest::Stop::syscall)
@@ -104,7 +109,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
         else std::snprintf(boundary, sizeof(boundary), "%s",
                           b.stop == guest::Stop::unmapped && b.unresolved == 0x1F8010F4 ?
                           "DICR (DMA IRQ control)" : "unexpected stop");
-        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS GPU probe\n"
+        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS BIOS probe\n"
                     "START exit / X rerun / A color\n"
                     "Y: synthetic test details\n"
                     "MIPS %u/%u hash %08lx\n"
@@ -126,7 +131,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     "Boundary: %-24s\n"
                     "Trap: %-22s\n"
                     "BSS %s / DPCR W:%lu / Timer W:%lu\n"
-                    "Recent startup entries:\n",
+                    "TTY [%s] puts:%lu bytes:%lu\n",
                     d.guest_tests->passed, d.guest_tests->count, hex(d.guest_tests->signature),
                     d.gt2_probe->passed, d.gt2_probe->count, hex(d.gt2_probe->signature),
                     d.boot_operations->passed, d.boot_operations->count,
@@ -144,7 +149,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     hex(b.vblank_counter), hex(b.sdk_vblank_counter), hex(b.unresolved),
                     boundary,
                     guest::stop_name(b.stop), b.clears_verified ? "PASS" : "FAIL",
-                    hex(b.dma_writes), hex(b.timer_writes));
+                    hex(b.dma_writes), hex(b.timer_writes), tty_preview, hex(b.puts_calls), hex(b.console_size));
         const unsigned first = b.trace_count > 2 ? b.trace_count - 2 : 0;
         for (unsigned i = first; i < b.trace_count; ++i)
             std::printf(" %2u: %08lx\n", i + 1, hex(b.trace[i]));

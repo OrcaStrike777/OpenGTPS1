@@ -1,6 +1,7 @@
 #include "opengt/boot_probe.hpp"
 #include "opengt/startup_services.hpp"
 #include <initializer_list>
+#include <cstring>
 
 namespace opengt::guest {
 namespace {
@@ -152,6 +153,67 @@ TestReport run_bios_tests() noexcept {
           c.stop == Stop::syscall && bios.syscall_calls == 0;
     c = call(0x80010000, 0, 2); ok &= !bios.dispatch_syscall(c);
     check("BIOS_SYS_unknown_BD_guard", ok);
+
+    Memory m = reset_test_memory();
+    const char literal[] = "CD_init:%s";
+    for (u32 i = 0; i < sizeof(literal); ++i) m.write(0x100 + i, 1, literal[i]);
+    bios = StartupBios{};
+    ok = true;
+    for (u32 vector : {0xA0u, 0xB0u}) {
+        c = call(vector, vector == 0xA0 ? 0x3E : 0x3F, vector == 0xA0 ? 0x80000100 : 0xA0000100);
+        const Context before = c;
+        ok &= bios.dispatch_console(c, m) && abi_preserved(before, c, before.read(2));
+    }
+    ok &= std::strcmp(bios.console, "CD_init:%sCD_init:%s") == 0 &&
+          bios.console_size == 20 && bios.puts_calls == 2 && bios.calls == 2;
+    check("BIOS_puts_alias_literal_ABI", ok);
+
+    bios = StartupBios{};
+    c = call(0xB0, 0x3F, 0);
+    ok = bios.dispatch_console(c, m) && std::strcmp(bios.console, "<NULL>") == 0;
+    c = call(0xB0, 0x3F, 0x200); // Mapped empty string.
+    ok &= bios.dispatch_console(c, m) && bios.console_size == 6 && bios.puts_calls == 2;
+    const char controls[] = "\tX\nY\rZ\b\t!";
+    for (u32 i = 0; i < sizeof(controls); ++i) m.write(0x300 + i, 1, controls[i]);
+    c = call(0xA0, 0x3E, 0x300);
+    ok &= bios.dispatch_console(c, m) &&
+          std::strcmp(bios.console, "<NULL>  X\r\nY\rZ\b        !") == 0 && bios.console_column == 9;
+    check("BIOS_puts_null_empty_controls", ok);
+
+    bios = StartupBios{};
+    // All rejected calls preserve guest state and the existing transcript.
+    c = call(0xB0, 0x3F, 0x100); bios.dispatch_console(c, m);
+    ok = true;
+    for (u32 address : {0x1F801814u, 0xDF800000u, 0xFFFFFFFFu, 0x80000000u}) {
+        if (address == 0x80000000u)
+            for (u32 i = 0; i <= StartupBios::console_capacity; ++i) m.write(i, 1, 'A');
+        c = call(0xB0, 0x3F, address);
+        const Context before = c;
+        ok &= !bios.dispatch_console(c, m) && c.pc == before.pc && c.read(2) == before.read(2) &&
+              c.instructions == before.instructions && c.stop == Stop::running;
+    }
+    c = call(0xA0, 0x3F, 0x100); ok &= !bios.dispatch_console(c, m); // printf remains unresolved.
+    c = call(0xB0, 0x3F, 0x100); c.next_delay = true; ok &= !bios.dispatch_console(c, m);
+    c = call(0xB0, 0x3F, 0x100); c.load(4, 0); ok &= !bios.dispatch_console(c, m);
+    c = call(0xB0, 0x3F, 0x100); c.stop = Stop::budget; ok &= !bios.dispatch_console(c, m);
+    ok &= bios.puts_calls == 1 && bios.calls == 1 && std::strcmp(bios.console, literal) == 0;
+    check("BIOS_puts_rejection_atomic", ok);
+
+    bios = StartupBios{};
+    for (u32 i = 0; i < StartupBios::console_capacity; ++i) m.write(0x400 + i, 1, 'X');
+    m.write(0x500, 1, 0);
+    c = call(0xB0, 0x3F, 0x400);
+    ok = bios.dispatch_console(c, m) && bios.console_size == 256 && bios.console[256] == 0;
+    c = call(0xB0, 0x3F, 0x4FF);
+    ok &= !bios.dispatch_console(c, m) && c.pc == 0xB0 && bios.console_size == 256 && bios.calls == 1;
+    c = call(0xB0, 0x3F, 0x500);
+    ok &= bios.dispatch_console(c, m) && bios.calls == 2; // Empty call fits a full sink.
+    bios = StartupBios{};
+    for (u32 i = 0; i < 255; ++i) m.write(0x400 + i, 1, 'X');
+    m.write(0x4FF, 1, '\n');
+    c = call(0xB0, 0x3F, 0x400);
+    ok &= !bios.dispatch_console(c, m) && bios.console_size == 0 && bios.calls == 0;
+    check("BIOS_puts_capacity_no_truncation", ok);
     return report;
 }
 } // namespace opengt::guest

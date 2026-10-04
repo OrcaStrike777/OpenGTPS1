@@ -11,6 +11,11 @@ struct TimerSetup {
 };
 
 struct StartupBios {
+    // Bounded TTY transcript, shared by host and ARM11 diagnostics. No output
+    // is dropped: calls that cannot fit or read their input remain unresolved.
+    static constexpr u32 console_capacity = 256;
+    char console[console_capacity + 1]{};
+    u32 console_size{}, console_column{}, puts_calls{};
     u32 hook_buffer{}, interrupt_environment{}, calls{};
     // Cold SIO0 policy (driver start enables it). Timer policies model the
     // initialized BIOS kernel at executable handoff, not power-on hardware.
@@ -32,6 +37,8 @@ struct StartupBios {
     bool acknowledge_pad_vblank(InterruptController&) const noexcept;
     // Returns false without changing guest state for every unsupported API.
     bool dispatch(Context&) noexcept;
+    // A(3E)/B(3F) puts only. Preserves guest state and transcript on rejection.
+    bool dispatch_console(Context&, const Memory&) noexcept;
     // Handles only ordinary SYS(1/2) traps. Unknown APIs and delay-slot
     // syscalls remain stopped with their original EPC/BD diagnostics.
     bool dispatch_syscall(Context&) noexcept;

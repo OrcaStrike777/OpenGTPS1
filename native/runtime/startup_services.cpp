@@ -7,6 +7,57 @@ u32 return_status(u32 saved) noexcept {
     return (saved & ~0xFu) | ((saved >> 2) & 0xFu);
 }
 }
+bool StartupBios::dispatch_console(Context& c, const Memory& m) noexcept {
+    if (c.stop != Stop::running || c.next_delay || c.pending_register ||
+        !((c.pc == 0xA0 && c.read(9) == 0x3E) || (c.pc == 0xB0 && c.read(9) == 0x3F)))
+        return false;
+    // Stage one complete call so an unreadable/unterminated string or full
+    // transcript cannot partially emit output and then be replayed on retry.
+    char staged[console_capacity]{};
+    u32 size = 0, column = console_column;
+    const auto emit = [&](char ch) {
+        if (console_size > console_capacity || size >= console_capacity - console_size) return false;
+        staged[size++] = ch;
+        return true;
+    };
+    const u32 address = c.read(4);
+    bool terminated = false;
+    for (u32 offset = 0; offset <= console_capacity; ++offset) {
+        u32 ch = 0;
+        if (!address) {
+            constexpr char null_text[] = "<NULL>";
+            ch = static_cast<unsigned char>(null_text[offset]);
+        } else {
+            if (address > ~u32{0} - offset) return false;
+            const u32 current = address + offset, physical = current & 0x1FFFFFFF;
+            // Console strings use mapped RAM/scratch, never side-effecting MMIO.
+            if (!(physical < 0x800000 || (physical >= 0x1F800000 && physical < 0x1F800400)) ||
+                !m.read(current, 1, ch)) return false;
+        }
+        if (!ch) { terminated = true; break; }
+        if (ch == '\t') {
+            const u32 spaces = 8 - (column & 7);
+            for (u32 n = 0; n < spaces; ++n) if (!emit(' ')) return false;
+            column += spaces;
+        } else if (ch == '\n') {
+            if (!emit('\r') || !emit('\n')) return false;
+            column = 0;
+        } else {
+            if (!emit(static_cast<char>(ch))) return false;
+            if (ch == '\r') column = 0;
+            else if (ch == '\b') { if (column) --column; }
+            else if (ch >= 0x20 && ch != 0x7F) ++column;
+        }
+    }
+    if (!terminated) return false;
+    for (u32 i = 0; i < size; ++i) console[console_size + i] = staged[i];
+    console_size += size; console[console_size] = 0; console_column = column;
+    ++puts_calls; ++calls;
+    // BIOS puts has no specified result register. Do not invent a success
+    // value or append the newline that the host C library's puts would add.
+    c.start(c.read(31)); c.in_delay = false;
+    return true;
+}
 bool StartupBios::dispatch_interrupt(Context& c, Memory& m, InterruptController& irq) noexcept {
     if (c.stop != Stop::running || !(c.sr & 1) || !(c.sr & c.cause & 0xFF00)) return false;
     // Defer until a complete branch/load boundary; never discard a delay slot
