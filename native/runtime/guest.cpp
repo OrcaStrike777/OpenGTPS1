@@ -132,6 +132,7 @@ const char* stop_name(Stop stop) noexcept {
     case Stop::delay_control: return "delay control";
     case Stop::bios: return "unresolved BIOS";
     case Stop::syscall: return "unresolved syscall";
+    case Stop::interrupt: return "unresolved IRQ delivery";
     }
     return "unknown";
 }

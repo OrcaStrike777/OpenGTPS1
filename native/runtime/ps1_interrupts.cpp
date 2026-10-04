@@ -43,6 +43,14 @@ bool InterruptController::write(std::uint32_t address, unsigned width, std::uint
 void InterruptController::sync_cpu(Context& c) const noexcept {
     c.cause = (c.cause & ~0x400u) | (requested() ? 0x400u : 0u);
 }
+void VBlankClock::advance(std::uint32_t cycles, InterruptController& irq) noexcept {
+    const std::uint64_t total = phase + std::uint64_t{cycles} * 2;
+    if (total < field_half_cycles) { phase = static_cast<std::uint32_t>(total); return; }
+    edges += static_cast<std::uint32_t>(total / field_half_cycles);
+    phase = static_cast<std::uint32_t>(total % field_half_cycles);
+    // I_STAT coalesces multiple unacknowledged edges, independently of I_MASK.
+    irq.pulse(0);
+}
 bool DmaPriority::read(std::uint32_t address, unsigned width, std::uint32_t& output) noexcept {
     if (!register_access(address, width, 0x1F8010F0)) return false;
     ++reads;

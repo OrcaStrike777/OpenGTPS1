@@ -23,6 +23,15 @@ private:
     std::uint32_t pending_{}, mask_{}, lines_{};
 };
 
+// Fixed NTSC non-interlaced loader fixture: 263 lines * 2152.5 CPU cycles.
+// Half-cycle phase retains the fractional field period without host time.
+// Caller supplies elapsed emulated cycles; GPU mode changes remain unsupported.
+struct VBlankClock {
+    static constexpr std::uint32_t field_half_cycles = 1132215;
+    std::uint32_t phase{}, edges{};
+    void advance(std::uint32_t cpu_cycles, InterruptController&) noexcept;
+};
+
 // Only the encountered DMA priority-control latch. Channels/transfers remain
 // unmapped. Mirrors PSMemory's DPCR storage, with the PS1 power-on value.
 struct DmaPriority {

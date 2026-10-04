@@ -99,10 +99,12 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
             std::snprintf(boundary, sizeof(boundary), "VBlank IRQ/callback wait");
         else if (b.stop == guest::Stop::syscall)
             std::snprintf(boundary, sizeof(boundary), "SYS(%02lx)", hex(b.syscall_api));
+        else if (b.stop == guest::Stop::unmapped && b.unresolved == 0x1F801814)
+            std::snprintf(boundary, sizeof(boundary), "GPU GP1 display control");
         else std::snprintf(boundary, sizeof(boundary), "%s",
                           b.stop == guest::Stop::unmapped && b.unresolved == 0x1F8010F4 ?
                           "DICR (DMA IRQ control)" : "unexpected stop");
-        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS VBlank probe\n"
+        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS IRQ probe\n"
                     "START exit / X rerun / A color\n"
                     "Y: synthetic test details\n"
                     "MIPS %u/%u hash %08lx\n"
@@ -115,11 +117,11 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     "Guest entries %lu\nInstructions %lu\n"
                     "I_STAT R:%lu W:%lu\nI_MASK R:%lu W:%lu\n"
                     "IRQ pending:%03lx mask:%03lx\n"
-                    "DICR R:%lu W:%lu =%08lx\n"
-                    "CD remove:%lu events:%02lx deq:%s\n"
-                    "SYS:%lu enter:%lu exit:%lu SR:%03lx\n"
+                    "GP1 write %08lx (blocked)\n"
+                    "VBL edges:%lu IRQ enter:%lu ret:%lu\n"
+                    "Callback:%s / IRQ active:%u SR:%03lx\n"
                     "Crossed I_STAT:%s DICR:%s\n"
-                    "VBL count:%lu/4 polls:%lu\n"
+                    "VBL count:%lu/4 SDK count:%lu\n"
                     "Unresolved  %08lx\n"
                     "Boundary: %-24s\n"
                     "Trap: %-22s\n"
@@ -134,11 +136,11 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     b.passed ? "PASS" : "FAIL", hex(b.entry), hex(b.pc), hex(b.last_pc),
                     hex(b.last_function), hex(b.functions), hex(b.instructions),
                     hex(b.stat_reads), hex(b.stat_writes), hex(b.mask_reads), hex(b.mask_writes),
-                    hex(b.irq_pending), hex(b.irq_mask), hex(b.dicr_reads), hex(b.dicr_writes), hex(b.dicr_state),
-                    hex(b.cd_remove_calls), hex(b.cd_events_open), b.cd_dequeue_unresolved ? "?" : "-",
-                    hex(b.syscall_calls), hex(b.critical_entries), hex(b.critical_exits), hex(b.sr),
+                    hex(b.irq_pending), hex(b.irq_mask), hex(b.gpu_control_value),
+                    hex(b.vblank_edges), hex(b.irq_entries), hex(b.irq_returns),
+                    b.entered_vblank_callback ? "YES" : "NO", static_cast<unsigned>(b.irq_active), hex(b.sr),
                     b.crossed_istat ? "PASS" : "FAIL", b.crossed_dicr ? "PASS" : "FAIL",
-                    hex(b.vblank_counter), hex(b.vblank_polls), hex(b.unresolved),
+                    hex(b.vblank_counter), hex(b.sdk_vblank_counter), hex(b.unresolved),
                     boundary,
                     guest::stop_name(b.stop), b.clears_verified ? "PASS" : "FAIL",
                     hex(b.dma_writes), hex(b.timer_writes));

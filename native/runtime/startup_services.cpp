@@ -7,6 +7,39 @@ u32 return_status(u32 saved) noexcept {
     return (saved & ~0xFu) | ((saved >> 2) & 0xFu);
 }
 }
+bool StartupBios::dispatch_interrupt(Context& c, Memory& m, InterruptController& irq) noexcept {
+    if (c.stop != Stop::running || !(c.sr & 1) || !(c.sr & c.cause & 0xFF00)) return false;
+    // Defer until a complete branch/load boundary; never discard a delay slot
+    // or replay a branch whose link register may already have been written.
+    if (c.next_delay || c.pending_register) { ++irq_deferred; return false; }
+    // No general BIOS event/handler chain yet. Refuse unsupported policies,
+    // other sources, and explicit re-enabling within our single saved frame.
+    if (irq_active || (c.cause & c.sr & 0xFF00) != 0x400 ||
+        (irq.pending() & irq.mask()) != 1 || pad_auto_ack || timer_auto_ack[3] || !hook_buffer) {
+        c.stop = Stop::interrupt; return false;
+    }
+    // HookEntryInt is a guest setjmp block, not a direct callback address.
+    // Validate/read the entire block before changing context or consuming IRQ.
+    u32 hook[12]{};
+    if (hook_buffer > 0xFFFFFFD0u) { c.stop = Stop::interrupt; return false; }
+    for (unsigned i = 0; i < 12; ++i)
+        if (!m.read(hook_buffer + i * 4, 4, hook[i])) { c.stop = Stop::interrupt; return false; }
+    if (!hook[0] || (hook[0] & 3) || (hook[1] & 3)) { c.stop = Stop::interrupt; return false; }
+    interrupted_ = c;
+    interrupted_.sr = (c.sr & ~0x3Fu) | ((c.sr << 2) & 0x3Fu);
+    interrupted_.cause = c.cause & ~0x8000007Cu;
+    interrupted_.epc = c.pc;
+    interrupted_.in_delay = false;
+    irq_resume_pc = c.pc;
+    irq_hook_pc = hook[0];
+    c.sr = interrupted_.sr; c.cause = interrupted_.cause; c.epc = c.pc;
+    c.write(31, hook[0]); c.write(29, hook[1]); c.write(30, hook[2]);
+    for (unsigned i = 0; i < 8; ++i) c.write(16 + i, hook[3 + i]);
+    c.write(28, hook[11]); c.write(2, 1);
+    c.start(hook[0]); c.in_delay = false;
+    irq_active = true; ++irq_entries;
+    return true;
+}
 bool StartupBios::dispatch_syscall(Context& c) noexcept {
     if (c.stop != Stop::syscall || c.in_delay || c.next_delay || c.pending_register ||
         (c.read(4) != 1 && c.read(4) != 2)) return false;
@@ -38,7 +71,17 @@ bool TimerSetup::write(u32 physical, unsigned width, u32 value) noexcept {
 }
 bool StartupBios::dispatch(Context& c) noexcept {
     if (c.stop != Stop::running || c.next_delay || c.pending_register) return false;
-    if (c.pc == 0xA0 && (c.read(9) == 0x72 || c.read(9) == 0x56)) {
+    if (c.pc == 0xB0 && c.read(9) == 0x17) {
+        if (!irq_active) return false;
+        const u32 instructions = c.instructions;
+        c = interrupted_;
+        c.instructions = instructions;
+        c.sr = return_status(c.sr);
+        irq_active = false; ++irq_returns; ++calls;
+        // Caller resynchronizes Cause.IP2 from the live controller next step.
+        // Return to interrupted PC, never this BIOS wrapper's RA.
+        return true;
+    } else if (c.pc == 0xA0 && (c.read(9) == 0x72 || c.read(9) == 0x56)) {
         // _96_remove enters critical state, closes ACK/DNE/RDY/END/ERR and
         // attempts handler dequeue, without leaving the critical section.
         // Model only this lifecycle projection; retail dequeue is bugged.
@@ -52,9 +95,9 @@ bool StartupBios::dispatch(Context& c) noexcept {
         ++cd_remove_calls;
     } else if (c.pc == 0xB0 && c.read(9) == 0x19) {
         hook_buffer = c.read(4);
-        // Matches BiosB's IntrEnvInInterruptAddr projection, retained for a future
-        // callback dispatcher. Only registration runs here; the guest setjmp ran
-        // natively and produced the saved register block itself.
+        // Retain the desktop IntrEnvInInterruptAddr projection for diagnostics.
+        // Native IRQ delivery uses the actual guest setjmp block instead of
+        // bypassing the original handler via this SDK-specific offset.
         interrupt_environment = hook_buffer ? hook_buffer - 0x36 : 0;
     } else if (c.pc == 0xB0 && c.read(9) == 0x5B) {
         // ChangeClearPAD: raw flag exchange, matching OpenBIOS setSIO0AutoAck.

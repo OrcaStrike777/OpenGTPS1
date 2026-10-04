@@ -17,12 +17,17 @@ struct BootReport {
     bool cd_dequeue_unresolved{};
     u32 vblank_callback{}, vblank_counter{}, vblank_polls{};
     bool waiting_vblank{};
+    u32 vblank_edges{}, vblank_phase{}, irq_entries{}, irq_returns{}, irq_deferred{};
+    u32 irq_resume_pc{}, irq_hook_pc{}, gpu_control_value{};
+    bool irq_active{}, entered_vblank_callback{};
+    u32 sdk_vblank_counter{}, guest_in_interrupt{};
     Stop stop{Stop::running};
     u32 trace[32]{}; unsigned trace_count{};
 };
 // devices=false retains the original unmapped-I_MASK diagnostic checkpoint.
+// schedule_vblank=false preserves the 88e4fc2 counter-wait regression fixture.
 // Stops synchronously within a bounded instruction budget; no host recursion.
-BootReport run_boot_probe(bool devices = true, u32 budget = 2000000) noexcept;
+BootReport run_boot_probe(bool devices = true, u32 budget = 2000000, bool schedule_vblank = true) noexcept;
 TestReport run_boot_runtime_tests() noexcept;
 TestReport run_interrupt_tests() noexcept;
 TestReport run_bios_tests() noexcept;

@@ -22,6 +22,11 @@ struct StartupBios {
     u32 cd_dequeue_attempts{};
     bool cd_dequeue_unresolved{}; // Retail SysDeqIntRP bug: no success invented.
     u32 syscall_calls{}, critical_entries{}, critical_exits{};
+    u32 irq_entries{}, irq_returns{}, irq_deferred{}, irq_resume_pc{}, irq_hook_pc{};
+    bool irq_active{};
+    // Bounded HLE of the BIOS exit-hook handoff for IRQ0 with BIOS auto-ack
+    // disabled. The guest handler/callback/acknowledgement execute normally.
+    bool dispatch_interrupt(Context&, Memory&, InterruptController&) noexcept;
     // Called only after a verified pad/card VBlank handler, not on the BIOS
     // setter or each guest instruction. No pad polling/IRQ delivery is implied.
     bool acknowledge_pad_vblank(InterruptController&) const noexcept;
@@ -30,5 +35,7 @@ struct StartupBios {
     // Handles only ordinary SYS(1/2) traps. Unknown APIs and delay-slot
     // syscalls remain stopped with their original EPC/BD diagnostics.
     bool dispatch_syscall(Context&) noexcept;
+private:
+    Context interrupted_{}; // One fixed saved TCB projection; no nested IRQs.
 };
 } // namespace opengt::guest

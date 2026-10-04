@@ -413,6 +413,76 @@ Stop syscall_slot(Context& c, Memory& m, u32 limit, u32 return_pc) noexcept {
     }
     return c.stop;
 }
+
+Stop irq_ack_return(Context& c, Memory& m, u32 limit, u32 return_pc) noexcept {
+    (void)m;
+    while (c.stop == Stop::running) {
+        if (c.pc == return_pc && !c.next_delay) return c.stop = Stop::returned;
+        if (limit-- == 0) return c.stop = Stop::budget;
+        if (c.pc & 3) { c.in_delay = c.next_delay; c.fault(Stop::address_load, c.pc); return c.stop; }
+        switch (c.pc) {
+        case 0x80010000u: { // MIPS 3C081F80
+            const u32 s = c.read(0), t = c.read(8);
+            (void)s; (void)t; const u32 next = c.begin();
+            c.write(8, 0x1F800000u);
+            if (c.stop != Stop::running) return c.stop;
+            c.pc = next; break;
+        }
+        case 0x80010004u: { // MIPS 35081070
+            const u32 s = c.read(8), t = c.read(8);
+            (void)s; (void)t; const u32 next = c.begin();
+            c.write(8, s | 0x00001070u);
+            if (c.stop != Stop::running) return c.stop;
+            c.pc = next; break;
+        }
+        case 0x80010008u: { // MIPS 2409FFFE
+            const u32 s = c.read(0), t = c.read(9);
+            (void)s; (void)t; const u32 next = c.begin();
+            c.write(9, s + 0xFFFFFFFEu);
+            if (c.stop != Stop::running) return c.stop;
+            c.pc = next; break;
+        }
+        case 0x8001000Cu: { // MIPS AD090000
+            const u32 s = c.read(8), t = c.read(9);
+            (void)s; (void)t; const u32 next = c.begin();
+            guest_write(c, m, (s + 0x00000000u), 4, t);
+            if (c.stop != Stop::running) return c.stop;
+            c.pc = next; break;
+        }
+        case 0x80010010u: { // MIPS 24090017
+            const u32 s = c.read(0), t = c.read(9);
+            (void)s; (void)t; const u32 next = c.begin();
+            c.write(9, s + 0x00000017u);
+            if (c.stop != Stop::running) return c.stop;
+            c.pc = next; break;
+        }
+        case 0x80010014u: { // MIPS 240A00B0
+            const u32 s = c.read(0), t = c.read(10);
+            (void)s; (void)t; const u32 next = c.begin();
+            c.write(10, s + 0x000000B0u);
+            if (c.stop != Stop::running) return c.stop;
+            c.pc = next; break;
+        }
+        case 0x80010018u: { // MIPS 01400008
+            const u32 s = c.read(10), t = c.read(0);
+            (void)s; (void)t; const u32 next = c.begin();
+            if (c.in_delay) return c.stop = Stop::delay_control;
+            c.branch(s);
+            if (c.stop != Stop::running) return c.stop;
+            c.pc = next; break;
+        }
+        case 0x8001001Cu: { // MIPS 00000000
+            const u32 s = c.read(0), t = c.read(0);
+            (void)s; (void)t; const u32 next = c.begin();
+            c.write(0, t << 0);
+            if (c.stop != Stop::running) return c.stop;
+            c.pc = next; break;
+        }
+        default: return c.stop = Stop::unknown_pc;
+        }
+    }
+    return c.stop;
+}
 }
 
 #include "opengt/boot_probe.hpp"
@@ -512,6 +582,33 @@ TestReport run_boot_runtime_tests() noexcept {
              c.cause==0x80000520 && c.bad_vaddr==0xABCDEF00 && c.instructions==2 &&
              !bios.dispatch_syscall(c) && bios.syscall_calls==0;
         report.tests[report.count++] = {"SYS_delay_slot_diagnostic",ok,ok,1}; report.passed += ok;
+    }
+    {
+        StartupBios bios; InterruptController irq;
+        m = reset_test_memory(); m.attach_interrupts(&irq);
+        bios.hook_buffer=0x80001000; bios.timer_auto_ack[3]=0;
+        for(unsigned j=0;j<12;++j) m.write(bios.hook_buffer+j*4,4,0x11110000+j*4);
+        m.write(bios.hook_buffer,4,0x80010000); m.write(bios.hook_buffer+4,4,0x80004000);
+        Context c; c.start(0x80020000);
+        for(unsigned j=1;j<32;++j) c.write(j,0xAABB0000+j);
+        c.sr=0x401; c.hi=0x98765432; c.lo=0x12345678; c.instructions=17;
+        const Context before=c;
+        irq.write(0x1F801074,4,1); irq.pulse(0); irq.sync_cpu(c);
+        ok=bios.dispatch_interrupt(c,m,irq);
+        recompiled::irq_ack_return(c,m,20,0xB0);
+        ok &= c.stop==Stop::returned && c.pc==0xB0 && c.instructions==25 &&
+              irq.pending()==0 && irq.stat_writes==1 && c.read(9)==0x17;
+        c.stop=Stop::running;
+        ok &= bios.dispatch(c) && c.pc==before.pc && c.next_pc==before.next_pc &&
+              c.sr==before.sr && c.hi==before.hi && c.lo==before.lo && c.instructions==25 &&
+              bios.irq_returns==1 && !bios.irq_active;
+        for(unsigned j=0;j<32;++j) ok &= c.read(j)==before.read(j);
+        irq.sync_cpu(c);
+        ok &= c.cause==0 && !bios.dispatch_interrupt(c,m,irq) && bios.irq_entries==1;
+        // A second edge must be deliverable after the genuine guest ack/return.
+        irq.pulse(0); irq.sync_cpu(c);
+        ok &= bios.dispatch_interrupt(c,m,irq) && bios.irq_entries==2;
+        report.tests[report.count++] = {"IRQ_guest_ack_B17_restore",ok,ok,1}; report.passed += ok;
     }
     return report;
 }

@@ -2,10 +2,10 @@
 
 Current milestone (2026-10-03): native MIPS/hash tests and GT2 startup through
 interrupt initialization passed the user's Old 3DS hardware test. The new
-optional boot build handles BIOS CD cleanup and critical-section syscalls,
-then reaches the original VBlank callback wait. This new hardware run is pending.
+optional boot build delivers VBlank through the original guest IRQ handler and
+callback, then stops at GPU display control. This new hardware run is pending.
 The preceding BIOS-policy milestone also passed the user's Old 3DS test.
-See [syscall/VBlank progress and current hardware expectations](../../docs/OLD3DS_SYSCALLS_VBLANK.md)
+See [VBlank IRQ progress and current hardware expectations](../../docs/OLD3DS_VBLANK_IRQ.md)
 or [content-free/native hash tests](../../docs/OLD3DS_NATIVE_GUEST.md).
 X reruns the tests.
 The old binary sizes/hashes below record the initial platform-only build.

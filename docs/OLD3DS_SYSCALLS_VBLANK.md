@@ -1,5 +1,8 @@
 # Native BIOS cleanup/syscalls and the GT2 VBlank wait
 
+Historical checkpoint at `88e4fc2`. The current build enters the original guest
+IRQ handler and callback; see [VBlank IRQ delivery](OLD3DS_VBLANK_IRQ.md).
+
 This continues `7c0d7b2` on `old3ds-port`. The real, hash-validated Simulation
 executable now passes `_96_remove`, executes `ExitCriticalSection`, returns from
 `ResetCallback`, and registers its VBlank callback. The next authentic blocker

@@ -68,6 +68,11 @@ int main() {
             (unsigned long)boot.sr, (unsigned long)boot.cause, (unsigned long)boot.epc);
         std::printf("VBlank wait=%d callback=%08lx counter=%lu polls=%lu\n",boot.waiting_vblank,
             (unsigned long)boot.vblank_callback,(unsigned long)boot.vblank_counter,(unsigned long)boot.vblank_polls);
+        std::printf("VBlank edges=%lu phase=%lu IRQ entries=%lu returns=%lu deferred=%lu active=%d resume=%08lx hookPC=%08lx callback=%d SDK=%lu busy=%lu GPU=%08lx\n",
+            (unsigned long)boot.vblank_edges,(unsigned long)boot.vblank_phase,(unsigned long)boot.irq_entries,
+            (unsigned long)boot.irq_returns,(unsigned long)boot.irq_deferred,boot.irq_active,
+            (unsigned long)boot.irq_resume_pc,(unsigned long)boot.irq_hook_pc,boot.entered_vblank_callback,
+            (unsigned long)boot.sdk_vblank_counter,(unsigned long)boot.guest_in_interrupt,(unsigned long)boot.gpu_control_value);
         const auto unshimmed = opengt::guest::run_boot_probe(false);
         const auto bounded = opengt::guest::run_boot_probe(true, 32);
         std::printf("Unshimmed %s PC=%08lx boundary=%08lx; watchdog %s instructions=%lu\n",
@@ -126,13 +131,31 @@ int main() {
         std::puts("PASS CD cleanup / SYS trap-resume / ResetCallback checkpoints");
         const auto wait_start = opengt::guest::run_boot_probe(true, 1307648);
         const auto wait_loop = opengt::guest::run_boot_probe(true, 1307653);
+        const auto unscheduled = opengt::guest::run_boot_probe(true, 2000000, false);
         if (!wait_start.waiting_vblank || wait_start.pc != 0x8001096C || wait_start.instructions != 1307643 ||
             wait_start.vblank_counter != 0 || wait_start.vblank_polls != 0 ||
             !wait_loop.waiting_vblank || wait_loop.pc != wait_start.pc ||
             wait_loop.vblank_counter != 0 || wait_loop.vblank_polls != 1 || wait_loop.instructions != 1307648 ||
-            boot.vblank_callback != 0x80010928 || boot.vblank_counter != 0 || boot.vblank_polls != 138471)
+            !unscheduled.passed || unscheduled.vblank_edges != 0 || unscheduled.irq_entries != 0 ||
+            unscheduled.vblank_callback != 0x80010928 || unscheduled.vblank_counter != 0 || unscheduled.vblank_polls != 138471)
             return 1;
         std::puts("PASS original VBlank callback registration and persistent wait");
+        const auto irq_before = opengt::guest::run_boot_probe(true, 1698328);
+        const auto irq_entered = opengt::guest::run_boot_probe(true, 1698329);
+        const auto gpu_before = opengt::guest::run_boot_probe(true, 1698438);
+        if (irq_before.stop != opengt::guest::Stop::budget || irq_before.pc != 0x8001096C ||
+            irq_before.instructions != 1698323 || irq_before.vblank_edges != 3 || irq_before.irq_pending != 1 ||
+            irq_before.irq_entries != 0 || irq_before.sr != 0x401 ||
+            irq_entered.stop != opengt::guest::Stop::budget || irq_entered.pc != 0x8008BE74 ||
+            irq_entered.instructions != irq_before.instructions || irq_entered.irq_entries != 1 ||
+            !irq_entered.irq_active || irq_entered.sr != 0x404 || irq_entered.epc != irq_before.pc ||
+            irq_entered.irq_pending != 1 || irq_entered.stat_writes != irq_before.stat_writes ||
+            gpu_before.stop != opengt::guest::Stop::budget || gpu_before.pc != 0x8007F844 ||
+            gpu_before.instructions != 1698432 || gpu_before.irq_pending != 0 || gpu_before.stat_writes != 2 ||
+            !gpu_before.entered_vblank_callback || boot.instructions != gpu_before.instructions + 1 ||
+            boot.cause != 0x8000001C || boot.epc != 0x8007F840 || boot.unresolved != 0x1F801814)
+            return 1;
+        std::puts("PASS IRQ hook / guest ack / callback / GPU delay-slot trap checkpoints");
         if (!boot.passed || !unshimmed.passed || bounded.stop != opengt::guest::Stop::budget || bounded.instructions != 32) return 1;
     }
     return 0;

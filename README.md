@@ -8,8 +8,8 @@ port. See the [port plan](docs/OLD3DS_PORT_PLAN.md) and
 below describes the upstream Windows release.
 
 The original bootstrap and earlier native startup milestones passed Old 3DS
-hardware tests. The current build passes BIOS CD cleanup and critical-section
-syscalls, then reaches the [original VBlank callback wait](docs/OLD3DS_SYSCALLS_VBLANK.md).
+hardware tests. The current build delivers VBlank through the original guest
+IRQ handler and callback, reaching a [GPU control write](docs/OLD3DS_VBLANK_IRQ.md).
 Host tests and ARM11 build pass; this new hardware checkpoint is pending.
 
 OpenGTPS1 0.9b is an experimental static-recompilation port of the US
