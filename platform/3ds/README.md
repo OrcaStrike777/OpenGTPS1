@@ -1,11 +1,10 @@
 # Old 3DS bootstrap
 
-Current milestone (2026-10-03): native MIPS/hash tests and GT2 startup through
-interrupt initialization passed the user's Old 3DS hardware test. The new
-optional boot build delivers VBlank through the original guest IRQ handler and
-callback, then stops at GPU display control. This new hardware run is pending.
-The preceding BIOS-policy milestone also passed the user's Old 3DS test.
-See [VBlank IRQ progress and current hardware expectations](../../docs/OLD3DS_VBLANK_IRQ.md)
+Current milestone (2026-10-03): all diagnostics through `28eb1e4` passed the
+user's physical Old 3DS test. The new optional boot build implements GP1 display
+control, completes all four original VBlank callbacks, and stops at CdInit's
+BIOS B(3Fh) puts call. Host tests and ARM builds pass; this hardware run is pending.
+See [GPU progress and current hardware expectations](../../docs/OLD3DS_GPU_CONTROL.md)
 or [content-free/native hash tests](../../docs/OLD3DS_NATIVE_GUEST.md).
 X reruns the tests.
 The old binary sizes/hashes below record the initial platform-only build.

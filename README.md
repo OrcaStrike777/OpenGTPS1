@@ -7,10 +7,10 @@ port. See the [port plan](docs/OLD3DS_PORT_PLAN.md) and
 [native dependency boundaries](docs/OLD3DS_DEPENDENCIES.md). The documentation
 below describes the upstream Windows release.
 
-The original bootstrap and earlier native startup milestones passed Old 3DS
-hardware tests. The current build delivers VBlank through the original guest
-IRQ handler and callback, reaching a [GPU control write](docs/OLD3DS_VBLANK_IRQ.md).
-Host tests and ARM11 build pass; this new hardware checkpoint is pending.
+The original bootstrap and native startup through `28eb1e4` passed Old 3DS
+hardware tests. The current build implements [GP1 display control](docs/OLD3DS_GPU_CONTROL.md),
+executes all four original VBlank callbacks, and reaches CdInit's BIOS puts call.
+Host tests and ARM11 builds pass; this new hardware checkpoint is pending.
 
 OpenGTPS1 0.9b is an experimental static-recompilation port of the US
 Gran Turismo 2 **Simulation Disc** (`SCUS-94488`, NTSC-U revision 2) and

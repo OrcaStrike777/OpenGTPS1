@@ -14,11 +14,11 @@ add_library(opengt_platform_io STATIC ../platform/common/stdio_files.cpp)
 target_include_directories(opengt_platform_io PUBLIC ../include)
 target_compile_features(opengt_platform_io PUBLIC cxx_std_17)
 
-add_library(opengt_guest STATIC ../runtime/guest.cpp ../runtime/ps1_interrupts.cpp ../runtime/ps1_dma.cpp ../runtime/startup_services.cpp)
+add_library(opengt_guest STATIC ../runtime/guest.cpp ../runtime/ps1_interrupts.cpp ../runtime/ps1_dma.cpp ../runtime/ps1_gpu.cpp ../runtime/startup_services.cpp)
 target_include_directories(opengt_guest PUBLIC ../include)
 target_compile_features(opengt_guest PUBLIC cxx_std_17)
 
-add_library(opengt_guest_tests STATIC ../tests/recompiled/mips_suite.cpp ../tests/recompiled/boot_runtime_suite.cpp ../tests/interrupt_tests.cpp ../tests/bios_tests.cpp ../tests/dma_tests.cpp)
+add_library(opengt_guest_tests STATIC ../tests/recompiled/mips_suite.cpp ../tests/recompiled/boot_runtime_suite.cpp ../tests/interrupt_tests.cpp ../tests/bios_tests.cpp ../tests/dma_tests.cpp ../tests/gpu_tests.cpp)
 target_link_libraries(opengt_guest_tests PUBLIC opengt_guest)
 option(OPENGT_GT2_PROBE "Build the locally generated, disc-validated GT2 hash probe" OFF)
 option(OPENGT_GT2_BOOT "Build the locally generated bounded GT2 startup probe" OFF)

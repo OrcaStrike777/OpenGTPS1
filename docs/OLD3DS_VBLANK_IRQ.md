@@ -1,5 +1,8 @@
 # Native VBlank IRQ delivery and the GPU control boundary
 
+The user has validated this checkpoint on physical Old 3DS. It is superseded
+by [GP1 display control and four completed callbacks](OLD3DS_GPU_CONTROL.md).
+
 This checkpoint continues `88e4fc2` on `old3ds-port`. The supported, validated
 SCUS_944.88 now enters its original VBlank callback through the installed BIOS
 exit hook and the original SDK IRQ handler. The next authentic blocker is a

@@ -51,6 +51,7 @@ struct Diagnostics {
     const guest::TestReport* interrupt_tests{};
     const guest::TestReport* bios_tests{};
     const guest::TestReport* dma_tests{};
+    const guest::TestReport* gpu_tests{};
     const guest::BootReport* boot{};
     bool boot_page{true};
 };

@@ -94,7 +94,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
         if (b.stop == guest::Stop::bios)
             std::snprintf(boundary, sizeof(boundary), "BIOS %c(%02lx)%s",
                           b.pc == 0xA0 ? 'A' : b.pc == 0xB0 ? 'B' : 'C', hex(b.bios_api),
-                          b.pc == 0xA0 && b.bios_api == 0x72 ? " _96_remove" : "");
+                          b.pc == 0xB0 && b.bios_api == 0x3F ? " puts" : "");
         else if (b.waiting_vblank)
             std::snprintf(boundary, sizeof(boundary), "VBlank IRQ/callback wait");
         else if (b.stop == guest::Stop::syscall)
@@ -104,7 +104,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
         else std::snprintf(boundary, sizeof(boundary), "%s",
                           b.stop == guest::Stop::unmapped && b.unresolved == 0x1F8010F4 ?
                           "DICR (DMA IRQ control)" : "unexpected stop");
-        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS IRQ probe\n"
+        std::printf("\x1b[1;1HOpenGTPS1 / Old 3DS GPU probe\n"
                     "START exit / X rerun / A color\n"
                     "Y: synthetic test details\n"
                     "MIPS %u/%u hash %08lx\n"
@@ -117,7 +117,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     "Guest entries %lu\nInstructions %lu\n"
                     "I_STAT R:%lu W:%lu\nI_MASK R:%lu W:%lu\n"
                     "IRQ pending:%03lx mask:%03lx\n"
-                    "GP1 write %08lx (blocked)\n"
+                    "GP1 W:%lu status:%08lx GPU %u/%u\n"
                     "VBL edges:%lu IRQ enter:%lu ret:%lu\n"
                     "Callback:%s / IRQ active:%u SR:%03lx\n"
                     "Crossed I_STAT:%s DICR:%s\n"
@@ -136,7 +136,8 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
                     b.passed ? "PASS" : "FAIL", hex(b.entry), hex(b.pc), hex(b.last_pc),
                     hex(b.last_function), hex(b.functions), hex(b.instructions),
                     hex(b.stat_reads), hex(b.stat_writes), hex(b.mask_reads), hex(b.mask_writes),
-                    hex(b.irq_pending), hex(b.irq_mask), hex(b.gpu_control_value),
+                    hex(b.irq_pending), hex(b.irq_mask), hex(b.gpu_writes), hex(b.gpu_status),
+                    d.gpu_tests->passed, d.gpu_tests->count,
                     hex(b.vblank_edges), hex(b.irq_entries), hex(b.irq_returns),
                     b.entered_vblank_callback ? "YES" : "NO", static_cast<unsigned>(b.irq_active), hex(b.sr),
                     b.crossed_istat ? "PASS" : "FAIL", b.crossed_dicr ? "PASS" : "FAIL",
@@ -179,6 +180,7 @@ bool Host::present(const platform::Diagnostics& d) noexcept {
             std::printf("IRQ %u/%u Boot %u/%u BIOS %u/%u DMA %u/%u\n", d.interrupt_tests->passed,
                 d.interrupt_tests->count, d.boot_operations->passed, d.boot_operations->count,
                 d.bios_tests->passed, d.bios_tests->count, d.dma_tests->passed, d.dma_tests->count);
+        if (d.gpu_tests) std::printf("GPU %u/%u\n", d.gpu_tests->passed, d.gpu_tests->count);
         std::printf("                                     \r");
         for (unsigned i = 0; i < report.count; ++i) {
             if (!report.tests[i].passed) {

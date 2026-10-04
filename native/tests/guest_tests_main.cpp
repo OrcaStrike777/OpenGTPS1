@@ -39,6 +39,11 @@ int main() {
         std::printf("%s %s\n",dma.tests[i].passed?"PASS":"FAIL",dma.tests[i].name);
     std::printf("DMA %u/%u\n",dma.passed,dma.count);
     if(dma.count!=dma.passed) return 1;
+    const auto gpu = opengt::guest::run_gpu_tests();
+    for (unsigned i=0;i<gpu.count;++i)
+        std::printf("%s %s\n",gpu.tests[i].passed?"PASS":"FAIL",gpu.tests[i].name);
+    std::printf("GPU %u/%u\n",gpu.passed,gpu.count);
+    if(gpu.count!=gpu.passed) return 1;
     const auto boot = opengt::guest::run_boot_probe();
     if (boot.available) {
         std::printf("BOOT %s entry=%08lx pc=%08lx last=%08lx func=%08lx calls=%lu instructions=%lu boundary=%08lx reason=%s clear=%d IO=%lu\n",
@@ -142,6 +147,8 @@ int main() {
         std::puts("PASS original VBlank callback registration and persistent wait");
         const auto irq_before = opengt::guest::run_boot_probe(true, 1698328);
         const auto irq_entered = opengt::guest::run_boot_probe(true, 1698329);
+        const auto first_return = opengt::guest::run_boot_probe(true, 2000000);
+        const auto gpu_after = opengt::guest::run_boot_probe(true, 1698439);
         const auto gpu_before = opengt::guest::run_boot_probe(true, 1698438);
         if (irq_before.stop != opengt::guest::Stop::budget || irq_before.pc != 0x8001096C ||
             irq_before.instructions != 1698323 || irq_before.vblank_edges != 3 || irq_before.irq_pending != 1 ||
@@ -152,10 +159,20 @@ int main() {
             irq_entered.irq_pending != 1 || irq_entered.stat_writes != irq_before.stat_writes ||
             gpu_before.stop != opengt::guest::Stop::budget || gpu_before.pc != 0x8007F844 ||
             gpu_before.instructions != 1698432 || gpu_before.irq_pending != 0 || gpu_before.stat_writes != 2 ||
-            !gpu_before.entered_vblank_callback || boot.instructions != gpu_before.instructions + 1 ||
-            boot.cause != 0x8000001C || boot.epc != 0x8007F840 || boot.unresolved != 0x1F801814)
+            !gpu_before.entered_vblank_callback || gpu_before.gpu_writes != 0 ||
+            gpu_after.stop != opengt::guest::Stop::budget || gpu_after.pc != 0x80010938 ||
+            gpu_after.instructions != gpu_before.instructions + 1 || gpu_after.gpu_writes != 1 ||
+            gpu_after.gpu_status != 0x14802000 || gpu_after.cause != 0 || !gpu_after.irq_active)
             return 1;
-        std::puts("PASS IRQ hook / guest ack / callback / GPU delay-slot trap checkpoints");
+        if (first_return.stop != opengt::guest::Stop::budget || !first_return.waiting_vblank ||
+            first_return.irq_returns != 1 || first_return.irq_active || first_return.guest_in_interrupt != 0 ||
+            first_return.vblank_counter != 1 || first_return.sdk_vblank_counter != 1 ||
+            first_return.gpu_writes != 1 || first_return.sr != 0x401) return 1;
+        if (boot.irq_returns != 4 || boot.irq_active || boot.vblank_counter != 4 ||
+            boot.vblank_callback != 0 || boot.gpu_writes != 4 || boot.gpu_reads != 0 ||
+            boot.gpu_status != 0x14802000 || boot.pc != 0xB0 || boot.bios_api != 0x3F) return 1;
+        std::puts("PASS four guest callbacks / BIOS returns / CdInit puts boundary");
+        std::puts("PASS IRQ hook / guest ack / callback / GPU delay-slot continuation checkpoints");
         if (!boot.passed || !unshimmed.passed || bounded.stop != opengt::guest::Stop::budget || bounded.instructions != 32) return 1;
     }
     return 0;

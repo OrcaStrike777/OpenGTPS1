@@ -6,6 +6,7 @@
 namespace opengt::guest {
 struct TimerSetup;
 class DmaInterrupts;
+class GpuControl;
 using u32 = std::uint32_t;
 enum class Stop : u32 { running, returned, budget, address_load, address_store,
                         unmapped, overflow, unknown_pc, delay_control, bios, syscall, interrupt };
@@ -20,6 +21,7 @@ public:
     void attach_dma_priority(DmaPriority* dma) noexcept { dma_ = dma; }
     void attach_dma_interrupts(DmaInterrupts* dma) noexcept { dma_irq_ = dma; }
     void attach_timer_setup(TimerSetup* timer) noexcept { timer_ = timer; }
+    void attach_gpu_control(GpuControl* gpu) noexcept { gpu_ = gpu; }
     bool read(u32 address, unsigned width, u32& value) const noexcept;
     bool write(u32 address, unsigned width, u32 value) noexcept;
 private:
@@ -31,6 +33,7 @@ private:
     DmaPriority* dma_{};
     DmaInterrupts* dma_irq_{};
     TimerSetup* timer_{};
+    GpuControl* gpu_{};
 };
 
 struct Context {

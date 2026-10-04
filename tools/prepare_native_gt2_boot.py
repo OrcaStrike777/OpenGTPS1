@@ -2,7 +2,7 @@
 """Build a bounded sparse startup graph from the validated original EXE.
 
 No instructions are replaced. Explicit audited ranges reach the original
-VBlank callback's GPU control write; additional calls stop as unknown targets.
+VBlank callbacks and CdInit's first BIOS puts; other calls stop as unknown targets.
 """
 import hashlib
 import json
@@ -25,7 +25,9 @@ RANGES = [(0x8005D600,0x8005D698), (0x8008CE08,0x8008CE30),
           (0x8008BD08,0x8008BD3C), (0x8008C60C,0x8008C638),
           (0x8008BEE4,0x8008C0B4), (0x8008C5A0,0x8008C60C),
           (0x80010928,0x80010954), (0x8007F830,0x8007F848),
-          (0x8008CCA8,0x8008CCB4)]
+          (0x8008CCA8,0x8008CCB4),
+          (0x80089F38,0x80089F50), (0x80089FC8,0x80089FD8),
+          (0x8008B6D8,0x8008B6F0), (0x8008E00C,0x8008E018)]
 
 def generate(exe, system_cnf):
     if hashlib.sha256(exe).hexdigest() != EXE_HASH: raise ValueError('wrong executable')
@@ -41,15 +43,15 @@ def generate(exe, system_cnf):
     image = exe[0x800:]
     # PS-X EXE .data fields are not treated as separate BSS. Original CRT clears it.
     out = ['// Locally generated proprietary startup code; keep ignored.',
-           '#include "opengt/guest_tests.hpp"', '#include "opengt/ps1_dma.hpp"', '#include "opengt/startup_services.hpp"', '#include "opengt/boot_probe.hpp"',
+           '#include "opengt/guest_tests.hpp"', '#include "opengt/ps1_dma.hpp"', '#include "opengt/ps1_gpu.hpp"', '#include "opengt/startup_services.hpp"', '#include "opengt/boot_probe.hpp"',
            'namespace opengt::guest {', 'namespace {',
            'const std::uint8_t image[] = {']
     out += [','.join(str(x) for x in image[i:i+64])+',' for i in range(0,len(image),64)]
     out += ['};', '}', 'BootReport run_boot_probe(bool devices, u32 budget, bool schedule_vblank) noexcept {',
             'BootReport report{}; report.available = true;',
             'Memory m = reset_test_memory(); InterruptController io{}; DmaInterrupts dicr(io); DmaPriority dma{}; TimerSetup timers{}; StartupBios bios{};',
-            'VBlankClock video{};',
-            'if (devices) { m.attach_interrupts(&io); m.attach_dma_priority(&dma); m.attach_dma_interrupts(&dicr); m.attach_timer_setup(&timers); }',
+            'VBlankClock video{}; GpuControl gpu(video);',
+            'if (devices) { m.attach_interrupts(&io); m.attach_dma_priority(&dma); m.attach_dma_interrupts(&dicr); m.attach_timer_setup(&timers); m.attach_gpu_control(&gpu); }',
             f'for (u32 i=0;i<sizeof(image);++i) if (!m.write({backend.literal(base)}+i,1,image[i])) return report;',
             '// Poison zero-initialized BSS to prove the original guest loops clear it.',
             'for (u32 a=0x800A8D5C;a<0x801F0D60;a+=4) m.write(a,4,0xA5A5A5A5);',
@@ -76,7 +78,7 @@ def generate(exe, system_cnf):
                     'if(devices && schedule_vblank) video.advance(1,io);']
             if pc==start:
                 out += ['++report.functions;report.last_function=c.pc;',
-                        'if(report.trace_count<32) report.trace[report.trace_count++]=c.pc;']
+                        'if(report.trace_count<64) report.trace[report.trace_count++]=c.pc;']
             if control: out += ['if(c.in_delay){ c.stop=Stop::delay_control; break; }']
             out += [statement]
             if pc == 0x8008BE50:
@@ -91,6 +93,7 @@ def generate(exe, system_cnf):
                 out += ['report.gpu_control_value=t;']
             out += ['if(c.stop==Stop::running){report.last_pc=c.pc;c.pc=next;} break; }']
     out += ['default:c.stop=(c.pc==0xA0||c.pc==0xB0||c.pc==0xC0)?Stop::bios:Stop::unknown_pc;break;', '}', '}',
+            'report.gpu_writes=gpu.writes;report.gpu_reads=gpu.reads;report.gpu_status=gpu.status();',
             'report.pc=c.pc;report.instructions=c.instructions;report.stop=c.stop;',
             'report.unresolved=c.stop==Stop::unmapped?c.bad_vaddr:c.pc;',
             'report.ra=c.read(31);report.sp=c.read(29);report.stat_reads=io.stat_reads;report.stat_writes=io.stat_writes;report.mask_reads=io.mask_reads;report.mask_writes=io.mask_writes;report.io_accesses=io.stat_reads+io.stat_writes+io.mask_reads+io.mask_writes;report.dma_reads=dma.reads;report.dma_writes=dma.writes;',
@@ -109,23 +112,24 @@ def generate(exe, system_cnf):
             'const bool heap=m.read(0x800A8D50,4,value)&&value==0x801F0D60;',
             'report.passed=report.clears_verified&&heap&&',
             '(devices?(report.crossed_istat&&report.crossed_dicr&&vblank&&handler&&',
-            'report.vblank_counter==0&&report.vblank_callback==0x80010928&&',
             'dicr.reads==0&&dicr.writes==1&&dicr.state()==0&&dicr.completions==0&&dicr.irq_rises==0&&',
             'dicr.channel_reads==0&&dicr.channel_writes==0&&io.pending()==0&&',
             'io.mask_writes==5&&io.mask()==9&&',
             'dma.writes==1&&dma.value==0x33333333&&timers.writes==1&&timers.mode[1]==0x100&&',
-            'bios.calls==4&&bios.hook_buffer==0x800A7BB4&&bios.pad_calls==1&&bios.pad_auto_ack==0&&',
+            'bios.calls==(schedule_vblank?8u:4u)&&bios.hook_buffer==0x800A7BB4&&bios.pad_calls==1&&bios.pad_auto_ack==0&&',
             'bios.cd_remove_calls==1&&bios.cd_events_open==0&&bios.cd_close_attempts==5&&bios.cd_dequeue_attempts==1&&bios.cd_dequeue_unresolved&&',
             'bios.syscall_calls==1&&bios.critical_entries==1&&bios.critical_exits==1&&',
             'bios.rcnt_calls==1&&bios.timer_auto_ack[3]==0&&',
             '(schedule_vblank?(',
-            'c.stop==Stop::unmapped&&c.pc==0x8007F844&&c.bad_vaddr==0x1F801814&&report.gpu_control_value==0x03000001&&',
-            'report.functions==31&&report.instructions==1698433&&report.last_pc==0x8007F840&&',
-            'video.edges==3&&video.phase==221&&bios.irq_entries==1&&bios.irq_returns==0&&bios.irq_active&&',
-            'bios.irq_resume_pc==0x8001096C&&bios.irq_hook_pc==0x8008BE74&&',
-            'report.entered_vblank_callback&&report.sdk_vblank_counter==1&&report.guest_in_interrupt==1&&',
-            'report.vblank_polls==78136&&io.stat_reads==1&&io.stat_writes==2&&io.mask_reads==4&&',
-            'c.sr==0x404&&c.cause==0x8000001C&&c.epc==0x8007F840):(',
+            'c.stop==Stop::bios&&c.pc==0xB0&&c.read(9)==0x3F&&c.read(4)==0x80090E94&&c.read(31)==0x8008B6F0&&',
+            'report.functions==53&&report.instructions==3396889&&report.last_pc==0x8008E014&&',
+            'video.edges==6&&video.phase==488&&bios.irq_entries==4&&bios.irq_returns==4&&!bios.irq_active&&',
+            'bios.irq_resume_pc==0x80010974&&bios.irq_hook_pc==0x8008BE74&&',
+            'report.entered_vblank_callback&&report.sdk_vblank_counter==4&&report.guest_in_interrupt==0&&',
+            'report.vblank_counter==4&&report.vblank_callback==0&&gpu.writes==4&&gpu.reads==0&&gpu.status()==0x14802000&&',
+            'report.vblank_polls==417691&&io.stat_reads==12&&io.stat_writes==5&&io.mask_reads==15&&',
+            'c.sr==0x401&&c.cause==0&&c.epc==0x80010974):(',
+            'report.vblank_counter==0&&report.vblank_callback==0x80010928&&gpu.writes==0&&',
             'report.waiting_vblank&&c.pc==0x80010974&&report.functions==27&&report.instructions==1999995&&report.last_pc==0x80010970&&',
             'report.vblank_polls==138471&&io.stat_reads==0&&io.stat_writes==1&&io.mask_reads==3&&',
             'video.edges==0&&bios.irq_entries==0&&!bios.irq_active&&!report.entered_vblank_callback&&',
