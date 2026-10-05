@@ -24,7 +24,7 @@ int main() {
     (void)saves; // Reserved boundary; bootstrap never writes a memory card.
     opengt::platform::Diagnostics diagnostics{};
     opengt::guest::TestReport guest_report{}, gt2_report{}, boot_operations{}, interrupt_tests{}, bios_tests{};
-    opengt::guest::TestReport dma_tests{}, gpu_tests{}, cdrom_tests{};
+    opengt::guest::TestReport dma_tests{}, gpu_tests{}, cdrom_tests{}, memcontrol_tests{};
     opengt::guest::BootReport boot_report{};
     const auto run_tests = [&]() {
         guest_report = opengt::guest::run_synthetic_tests();
@@ -34,6 +34,7 @@ int main() {
         dma_tests = opengt::guest::run_dma_tests();
         gpu_tests = opengt::guest::run_gpu_tests();
         cdrom_tests = opengt::guest::run_cdrom_tests();
+        memcontrol_tests = opengt::guest::run_memcontrol_tests();
         gt2_report = {};
         boot_report = {};
         if (guest_report.passed == guest_report.count)
@@ -42,7 +43,7 @@ int main() {
             boot_operations.passed == boot_operations.count &&
             interrupt_tests.passed == interrupt_tests.count && bios_tests.passed == bios_tests.count &&
             dma_tests.passed == dma_tests.count && gpu_tests.passed == gpu_tests.count &&
-            cdrom_tests.passed == cdrom_tests.count)
+            cdrom_tests.passed == cdrom_tests.count && memcontrol_tests.passed == memcontrol_tests.count)
             boot_report = opengt::guest::run_boot_probe();
     };
     run_tests();
@@ -54,6 +55,7 @@ int main() {
     diagnostics.dma_tests = &dma_tests;
     diagnostics.gpu_tests = &gpu_tests;
     diagnostics.cdrom_tests = &cdrom_tests;
+    diagnostics.memcontrol_tests = &memcontrol_tests;
     diagnostics.boot = &boot_report;
     char probe[64]{};
     std::size_t bytes_read = 0;

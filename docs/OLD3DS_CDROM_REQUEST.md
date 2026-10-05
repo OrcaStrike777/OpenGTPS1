@@ -110,7 +110,9 @@ previous SD-card probe. Binary size: 940,220 bytes. SHA-256:
 
 Expected Old 3DS highlights: `GT2 BOOT PASS (bounded stop)`, PC 8008b820,
 58 entries, 3397042 instructions, `CD 10/10 bank:0 R:1 W:3`, and boundary
-`COM_DELAY (bus timing)`. Physical validation of this new checkpoint is pending.
+`COM_DELAY (bus timing)`. Physical validation of `b5470d8` passed without issue
+on the user's Old 3DS; it is published on `origin/old3ds-port`. The next checkpoint
+is documented in [COM_DELAY behavior](OLD3DS_COM_DELAY.md).
 PASS confirms this exact unresolved boundary. CdInit has not completed, no CD
 commands execute and no sector data is supplied. Prior text tearing remains
 diagnostic UI behavior.

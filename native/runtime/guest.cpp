@@ -3,6 +3,7 @@
 #include "opengt/ps1_dma.hpp"
 #include "opengt/ps1_gpu.hpp"
 #include "opengt/ps1_cdrom.hpp"
+#include "opengt/ps1_memcontrol.hpp"
 
 namespace opengt::guest {
 Memory::Memory(std::uint8_t* ram, std::size_t bytes, std::uint8_t* scratch) noexcept
@@ -30,6 +31,7 @@ bool Memory::read(u32 address, unsigned width, u32& value) const noexcept {
         if (dma_irq_ && dma_irq_->read(physical, width, value)) return true;
         if (gpu_ && gpu_->read(physical, width, value)) return true;
         if (cdrom_ && cdrom_->read(physical, width, value)) return true;
+        if (common_delay_ && common_delay_->read(physical, width, value)) return true;
     }
     const auto* p = resolve(address, width);
     if (!p) return false;
@@ -46,6 +48,7 @@ bool Memory::write(u32 address, unsigned width, u32 value) noexcept {
         if (timer_ && timer_->write(physical, width, value)) return true;
         if (gpu_ && gpu_->write(physical, width, value)) return true;
         if (cdrom_ && cdrom_->write(physical, width, value)) return true;
+        if (common_delay_ && common_delay_->write(physical, width, value)) return true;
     }
     auto* p = resolve(address, width);
     if (!p) return false;
